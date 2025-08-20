@@ -8,7 +8,7 @@ class WatermarkProcessor {
         self.currentDevice = currentDevice
     }
     
-    func processWatermark(imageData: Data, photo: AVCapturePhoto, format: PhotoFormat) -> Data {
+    func processWatermark(imageData: Data, photo: AVCapturePhoto, format: PhotoFormat, aspectRatio: AspectRatio? = nil) -> Data {
         let settings = WatermarkSettings.load()
         
         print("🏷️ 水印功能检查:")
@@ -34,7 +34,7 @@ class WatermarkProcessor {
         
         // 应用水印
         print("  - 开始应用水印...")
-        if let watermarkedImage = WatermarkService.shared.addWatermark(to: image, with: captureSettings) {
+        if let watermarkedImage = WatermarkService.shared.addWatermark(to: image, with: captureSettings, aspectRatio: aspectRatio) {
             print("  ✅ 水印应用成功")
             // 根据当前照片格式转换为数据
             let quality: CGFloat = 0.95

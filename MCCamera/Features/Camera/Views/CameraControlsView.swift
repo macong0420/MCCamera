@@ -51,6 +51,17 @@ struct CameraControlsView: View {
                     .clipShape(Circle())
             }
             
+            // 画面比例按钮
+            Button(action: { viewModel.showingAspectRatioSelection = true }) {
+                Text(viewModel.selectedAspectRatio.rawValue)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.black.opacity(0.3))
+                    .clipShape(Capsule())
+            }
+            
             Spacer()
             
             // 🚀 后台处理状态指示器
@@ -120,14 +131,27 @@ struct CameraControlsView: View {
                 
                 Spacer()
                 
-                // 添加手动控制切换按钮
-                Button(action: { viewModel.toggleManualControls() }) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.title2)
-                        .foregroundColor(viewModel.isManualControlsVisible ? .yellow : .white)
-                        .frame(width: 60, height: 60)
-                        .background(Color.black.opacity(0.3))
-                        .clipShape(Circle())
+                // 右侧控制按钮组
+                VStack(spacing: 8) {
+                    // 手动控制切换按钮
+                    Button(action: { viewModel.toggleManualControls() }) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 16))
+                            .foregroundColor(viewModel.isManualControlsVisible ? .yellow : .white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.black.opacity(0.3))
+                            .clipShape(Circle())
+                    }
+                    
+                    // Auto按钮 - 重置所有设置为自动
+                    Button(action: { viewModel.resetToAutoMode() }) {
+                        Text("AUTO")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.black.opacity(0.3))
+                            .clipShape(Circle())
+                    }
                 }
             }
             .padding(.horizontal, 40)

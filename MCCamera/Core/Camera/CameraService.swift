@@ -35,6 +35,7 @@ class CameraService: NSObject, ObservableObject {
     private var currentPhotoResolution: PhotoResolution = .resolution12MP
     
     private var photoCompletionHandler: ((Result<Data, Error>) -> Void)?
+    private var currentAspectRatio: AspectRatio?
     
     override init() {
         super.init()
@@ -240,7 +241,7 @@ class CameraService: NSObject, ObservableObject {
         }
     }
     
-    func capturePhoto(completion: @escaping (Result<Data, Error>) -> Void) {
+    func capturePhoto(aspectRatio: AspectRatio? = nil, completion: @escaping (Result<Data, Error>) -> Void) {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -292,6 +293,7 @@ class CameraService: NSObject, ObservableObject {
             print("📸 拍照设置配置完成")
             
             self.photoCompletionHandler = completion
+            self.currentAspectRatio = aspectRatio
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -398,7 +400,7 @@ class CameraService: NSObject, ObservableObject {
     // 应用水印功能
     private func applyWatermarkIfNeeded(to imageData: Data, photo: AVCapturePhoto) -> Data {
         let watermarkProcessor = WatermarkProcessor(currentDevice: currentDevice)
-        return watermarkProcessor.processWatermark(imageData: imageData, photo: photo, format: currentPhotoFormat)
+        return watermarkProcessor.processWatermark(imageData: imageData, photo: photo, format: currentPhotoFormat, aspectRatio: currentAspectRatio)
     }
 }
 
@@ -435,7 +437,7 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
             print("💾 开始后台保存到相册...")
             
             // 保存到相册（在后台线程）
-            self.photoProcessor.savePhotoToLibrary(finalImageData, format: self.currentPhotoFormat)
+            self.photoProcessor.savePhotoToLibrary(finalImageData, format: self.currentPhotoFormat, aspectRatio: self.currentAspectRatio)
             
             print("✅ 后台处理完成：水印 + 保存")
         }

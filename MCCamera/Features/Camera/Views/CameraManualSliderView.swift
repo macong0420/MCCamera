@@ -57,21 +57,6 @@ struct CameraManualSliderView: View {
                             }
                     )
                 
-                // 重置按钮
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        resetToDefault()
-                    }) {
-                        Text("A")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 30, height: 30)
-                            .background(Color.red)
-                            .clipShape(Circle())
-                    }
-                }
-                .padding(.trailing, 10)
             }
         }
         .frame(height: 60)

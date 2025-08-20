@@ -7,7 +7,7 @@ class WatermarkService {
     
     private init() {}
     
-    func addWatermark(to image: UIImage, with captureSettings: CameraCaptureSettings) -> UIImage? {
+    func addWatermark(to image: UIImage, with captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio? = nil) -> UIImage? {
         let settings = WatermarkSettings.load()
         
         print("🎨 WatermarkService.addWatermark 被调用")
@@ -27,23 +27,34 @@ class WatermarkService {
             image.draw(at: CGPoint.zero)
             
             let rect = CGRect(origin: CGPoint.zero, size: image.size)
-            drawWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings)
+            drawWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio)
         }
         
         print("  ✅ 水印绘制完成")
         return result
     }
     
-    private func drawWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings) {
+    private func drawWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio? = nil) {
         print("    🖌️ drawWatermark 开始")
         print("      - 画布尺寸: \(rect.size)")
         print("      - 作者名字: '\(settings.authorName)'")
         
         context.saveGState()
         
-        // 根据图片尺寸动态计算字体大小，确保在不同分辨率下都有合适的比例
-        let imageWidth = rect.width
-        let imageHeight = rect.height
+        // 确定有效绘制区域（考虑比例裁剪）
+        let effectiveRect: CGRect
+        if let aspectRatio = aspectRatio, aspectRatio != .ratio4_3 {
+            effectiveRect = aspectRatio.getCropRect(for: rect.size)
+            print("      - 应用比例裁剪: \(aspectRatio.rawValue)")
+            print("      - 有效绘制区域: \(effectiveRect)")
+        } else {
+            effectiveRect = rect
+            print("      - 使用完整画布")
+        }
+        
+        // 根据有效区域尺寸动态计算字体大小，确保在不同分辨率下都有合适的比例
+        let imageWidth = effectiveRect.width
+        let imageHeight = effectiveRect.height
         let baseSize = min(imageWidth, imageHeight)
         
         // 根据图片尺寸动态计算间距
@@ -64,13 +75,13 @@ class WatermarkService {
         print("      - 第一行字体大小: \(firstLineFontSize)")
         print("      - 第二行字体大小: \(secondLineFontSize)")
         
-        let firstLineY = rect.height - bottomPadding - firstLineFont.lineHeight - lineSpacing - secondLineFont.lineHeight
-        let secondLineY = rect.height - bottomPadding - secondLineFont.lineHeight
+        let firstLineY = effectiveRect.maxY - bottomPadding - firstLineFont.lineHeight - lineSpacing - secondLineFont.lineHeight
+        let secondLineY = effectiveRect.maxY - bottomPadding - secondLineFont.lineHeight
         
         if !settings.authorName.isEmpty {
             let firstLineText = "PHOTO BY \(settings.authorName)"
             let textSize = firstLineText.size(withAttributes: [.font: firstLineFont])
-            let centerX = (rect.width - textSize.width) / 2
+            let centerX = effectiveRect.minX + (effectiveRect.width - textSize.width) / 2
             
             drawText(firstLineText, 
                     font: firstLineFont, 
@@ -116,11 +127,11 @@ class WatermarkService {
             drawText(leftText, 
                     font: secondLineFont, 
                     color: .white, 
-                    at: CGPoint(x: padding, y: secondLineY), 
+                    at: CGPoint(x: effectiveRect.minX + padding, y: secondLineY), 
                     in: context)
             
             if !centerText.isEmpty {
-                let centerX = rect.width / 2
+                let centerX = effectiveRect.minX + effectiveRect.width / 2
                 let centerSize = centerText.size(withAttributes: [.font: secondLineFont])
                 drawText(centerText, 
                         font: secondLineFont, 
@@ -134,7 +145,7 @@ class WatermarkService {
                 drawText(rightText, 
                         font: secondLineFont, 
                         color: .white, 
-                        at: CGPoint(x: rect.width - padding - rightSize.width, y: secondLineY), 
+                        at: CGPoint(x: effectiveRect.maxX - padding - rightSize.width, y: secondLineY), 
                         in: context)
             }
         }

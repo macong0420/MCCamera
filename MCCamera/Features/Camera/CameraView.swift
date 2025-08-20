@@ -39,6 +39,17 @@ struct CameraView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .overlay(
+            // 比例选择弹窗
+            Group {
+                if viewModel.showingAspectRatioSelection {
+                    AspectRatioSelectionView(
+                        selectedAspectRatio: $viewModel.selectedAspectRatio,
+                        isPresented: $viewModel.showingAspectRatioSelection
+                    )
+                }
+            }
+        )
     }
     
     private func cameraPreviewLayer(geometry: GeometryProxy) -> some View {
@@ -67,6 +78,12 @@ struct CameraView: View {
                     }
                 )
             }
+            
+            // 画面比例遮罩
+            AspectRatioPreviewOverlay(
+                aspectRatio: viewModel.selectedAspectRatio,
+                geometry: geometry
+            )
         }
     }
 }

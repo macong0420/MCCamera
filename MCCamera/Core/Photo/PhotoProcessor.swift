@@ -10,7 +10,7 @@ class PhotoProcessor {
         self.locationManager = locationManager
     }
     
-    func savePhotoToLibrary(_ imageData: Data, format: PhotoFormat) {
+    func savePhotoToLibrary(_ imageData: Data, format: PhotoFormat, aspectRatio: AspectRatio? = nil) {
         PHPhotoLibrary.requestAuthorization { [weak self] status in
             guard status == .authorized else {
                 print("❌ 相册权限未授权")
@@ -21,7 +21,7 @@ class PhotoProcessor {
             self?.logOriginalMetadata(imageData)
             
             // 创建带有完整元数据的图像数据
-            guard let enhancedImageData = self?.createImageWithCompleteMetadata(from: imageData, format: format) else {
+            guard let enhancedImageData = self?.createImageWithCompleteMetadata(from: imageData, format: format, aspectRatio: aspectRatio) else {
                 print("❌ 无法创建带有完整元数据的图像")
                 return
             }
@@ -49,7 +49,7 @@ class PhotoProcessor {
         }
     }
     
-    private func createImageWithCompleteMetadata(from imageData: Data, format: PhotoFormat) -> Data? {
+    private func createImageWithCompleteMetadata(from imageData: Data, format: PhotoFormat, aspectRatio: AspectRatio? = nil) -> Data? {
         guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
               let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
             print("❌ 无法创建CGImage")
@@ -74,6 +74,16 @@ class PhotoProcessor {
             print("ℹ️ 检测到12MP图像")
         } else {
             print("⚠️ 检测到未知分辨率图像: \(originalMegapixels)MP")
+        }
+        
+        // 处理比例裁剪
+        let finalCGImage: CGImage
+        if let aspectRatio = aspectRatio, aspectRatio != .ratio4_3 {
+            print("🔄 应用比例裁剪: \(aspectRatio.rawValue)")
+            finalCGImage = cropImageToAspectRatio(cgImage, aspectRatio: aspectRatio)
+        } else {
+            print("📷 保持原始比例")
+            finalCGImage = cgImage
         }
         
         // 获取原始元数据
@@ -167,7 +177,7 @@ class PhotoProcessor {
         CGImageDestinationSetProperties(destination, options as CFDictionary)
         
         // 添加图像和元数据
-        CGImageDestinationAddImage(destination, cgImage, metadata as CFDictionary)
+        CGImageDestinationAddImage(destination, finalCGImage, metadata as CFDictionary)
         
         // 完成写入
         guard CGImageDestinationFinalize(destination) else {
@@ -223,6 +233,31 @@ class PhotoProcessor {
             }
         } else {
             print("❌ 无法验证保存的元数据")
+        }
+    }
+    
+    private func cropImageToAspectRatio(_ cgImage: CGImage, aspectRatio: AspectRatio) -> CGImage {
+        let originalWidth = cgImage.width
+        let originalHeight = cgImage.height
+        let originalSize = CGSize(width: originalWidth, height: originalHeight)
+        
+        print("🔄 裁剪图像:")
+        print("  - 原始尺寸: \(originalWidth) x \(originalHeight)")
+        print("  - 目标比例: \(aspectRatio.rawValue) (\(aspectRatio.ratioValue))")
+        
+        // 计算裁剪区域
+        let cropRect = aspectRatio.getCropRect(for: originalSize)
+        
+        print("  - 裁剪区域: \(cropRect)")
+        print("  - 裁剪后尺寸: \(Int(cropRect.width)) x \(Int(cropRect.height))")
+        
+        // 执行裁剪
+        if let croppedImage = cgImage.cropping(to: cropRect) {
+            print("✅ 图像裁剪成功")
+            return croppedImage
+        } else {
+            print("❌ 图像裁剪失败，返回原图")
+            return cgImage
         }
     }
     

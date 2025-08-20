@@ -28,7 +28,11 @@ class CameraViewModel: ObservableObject {
     
     // 添加手动相机控制
     @Published var manualSettings = CameraManualSettings()
-    @Published var isManualControlsVisible = true
+    @Published var isManualControlsVisible = false
+    
+    // 画面比例设置
+    @Published var selectedAspectRatio: AspectRatio = .default
+    @Published var showingAspectRatioSelection = false
     
     private let cameraService = CameraService()
     
@@ -104,6 +108,12 @@ class CameraViewModel: ObservableObject {
         if let resolutionString = UserDefaults.standard.string(forKey: "photo_resolution"),
            let resolution = PhotoResolution(rawValue: resolutionString) {
             currentPhotoResolution = resolution
+        }
+        
+        // 读取画面比例设置
+        if let aspectRatioString = UserDefaults.standard.string(forKey: "selected_aspect_ratio"),
+           let aspectRatio = AspectRatio(rawValue: aspectRatioString) {
+            selectedAspectRatio = aspectRatio
         }
         
         // 更新相机服务设置
@@ -217,7 +227,7 @@ class CameraViewModel: ObservableObject {
         
         isCapturing = true
         
-        cameraService.capturePhoto { [weak self] result in
+        cameraService.capturePhoto(aspectRatio: selectedAspectRatio) { [weak self] result in
             DispatchQueue.main.async {
                 // 🚀 立即释放拍摄状态，允许连续拍摄
                 self?.isCapturing = false
@@ -310,6 +320,57 @@ class CameraViewModel: ObservableObject {
     func toggleGrid() {
         isGridVisible.toggle()
         UserDefaults.standard.set(isGridVisible, forKey: "grid_overlay_enabled")
+    }
+    
+    // 重置所有相机设置为自动模式
+    func resetToAutoMode() {
+        print("\n📸 重置所有相机设置为自动模式...")
+        
+        guard let device = cameraService.currentDevice else {
+            print("❌ 当前没有可用的相机设备")
+            return
+        }
+        
+        do {
+            try device.lockForConfiguration()
+            print("📸 成功锁定设备配置")
+            
+            // 重置曝光为自动模式
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+                print("📸 设置为连续自动曝光模式")
+                
+                // 重置曝光补偿为0
+                device.setExposureTargetBias(0.0, completionHandler: { (time) in
+                    print("📸 曝光补偿已重置为0")
+                })
+            }
+            
+            // 重置对焦为自动模式
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+                print("📸 设置为连续自动对焦模式")
+            }
+            
+            // 重置白平衡为自动模式
+            if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                device.whiteBalanceMode = .continuousAutoWhiteBalance
+                print("📸 设置为连续自动白平衡模式")
+            }
+            
+            device.unlockForConfiguration()
+            print("📸 所有设置已重置为自动模式")
+            
+            // 重置曝光滑块值
+            exposureValue = 0.0
+            
+            // 重置手动设置为默认值
+            manualSettings.resetToDefaults()
+            manualSettings.selectedSetting = nil
+            
+        } catch {
+            print("❌ 无法配置相机设备: \(error)")
+        }
     }
     
     // 应用手动相机设置
