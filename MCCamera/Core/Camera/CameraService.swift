@@ -241,7 +241,7 @@ class CameraService: NSObject, ObservableObject {
         }
     }
     
-    func capturePhoto(aspectRatio: AspectRatio? = nil, completion: @escaping (Result<Data, Error>) -> Void) {
+    func capturePhoto(aspectRatio: AspectRatio? = nil, flashMode: AVCaptureDevice.FlashMode = .auto, completion: @escaping (Result<Data, Error>) -> Void) {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -261,9 +261,11 @@ class CameraService: NSObject, ObservableObject {
             
             // 设置闪光灯模式
             if let currentDevice = self.currentDevice, currentDevice.hasFlash {
-                settings.flashMode = .auto
+                settings.flashMode = flashMode
+                print("📸 设置闪光灯模式为: \(flashMode.rawValue)")
             } else {
                 settings.flashMode = .off
+                print("📸 设备不支持闪光灯，设置为关闭")
             }
             
             // 使用设备支持的最高质量设置

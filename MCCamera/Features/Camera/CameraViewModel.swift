@@ -34,6 +34,9 @@ class CameraViewModel: ObservableObject {
     @Published var selectedAspectRatio: AspectRatio = .default
     @Published var showingAspectRatioSelection = false
     
+    // 🔦 闪光灯控制
+    @Published var flashController = FlashController()
+    
     private let cameraService = CameraService()
     
     var session: AVCaptureSession {
@@ -213,6 +216,8 @@ class CameraViewModel: ObservableObject {
         // 启动后更新48MP可用性
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.update48MPAvailability()
+            // 🔦 初始化闪光灯控制器
+            self?.updateFlashController()
             // 检查设备能力
             self?.checkDeviceCapabilities()
         }
@@ -227,7 +232,10 @@ class CameraViewModel: ObservableObject {
         
         isCapturing = true
         
-        cameraService.capturePhoto(aspectRatio: selectedAspectRatio) { [weak self] result in
+        cameraService.capturePhoto(
+            aspectRatio: selectedAspectRatio,
+            flashMode: flashController.getPhotoFlashMode()
+        ) { [weak self] result in
             DispatchQueue.main.async {
                 // 🚀 立即释放拍摄状态，允许连续拍摄
                 self?.isCapturing = false
@@ -283,6 +291,9 @@ class CameraViewModel: ObservableObject {
         // 切换镜头后更新48MP可用性
         update48MPAvailability()
         
+        // 🔦 更新闪光灯控制器的当前设备
+        updateFlashController()
+        
         // 切换镜头时重置手动设置
         manualSettings.resetToDefaults()
         manualSettings.selectedSetting = nil
@@ -293,6 +304,11 @@ class CameraViewModel: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.is48MPAvailable = self?.cameraService.is48MPAvailable ?? false
         }
+    }
+    
+    // 🔦 更新闪光灯控制器
+    private func updateFlashController() {
+        flashController.updateDevice(cameraService.currentDevice)
     }
     
     func setFocusPoint(_ point: CGPoint) {

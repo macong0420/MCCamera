@@ -44,9 +44,9 @@ struct CameraControlsView: View {
         HStack {
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape.fill")
-                    .font(.title2)
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.white)
-                    .padding(12)
+                    .frame(width: 36, height: 36)
                     .background(Color.black.opacity(0.3))
                     .clipShape(Circle())
             }
@@ -62,6 +62,11 @@ struct CameraControlsView: View {
                     .clipShape(Capsule())
             }
             
+            // 🔦 闪光灯控制
+            if viewModel.flashController.hasFlashSupport {
+                FlashControlView(flashController: viewModel.flashController)
+            }
+            
             Spacer()
             
             // 🚀 后台处理状态指示器
@@ -71,9 +76,9 @@ struct CameraControlsView: View {
             
             Button(action: { viewModel.toggleGrid() }) {
                 Image(systemName: viewModel.isGridVisible ? "grid" : "grid")
-                    .font(.title2)
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(viewModel.isGridVisible ? .yellow : .white)
-                    .padding(12)
+                    .frame(width: 36, height: 36)
                     .background(Color.black.opacity(0.3))
                     .clipShape(Circle())
             }
