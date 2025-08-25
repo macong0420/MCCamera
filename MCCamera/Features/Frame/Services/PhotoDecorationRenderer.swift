@@ -140,8 +140,15 @@ class PhotoDecorationRenderer {
                     )
                     
                 case .none:
-                    // 不应用任何装饰
-                    break
+                    // 无相框：直接在照片上渲染logo和拍摄信息（类似水印）
+                    renderDirectWatermark(
+                        imageSize: renderImage.size,
+                        customText: customText,
+                        selectedLogo: selectedLogo,
+                        metadata: metadata,
+                        watermarkInfo: watermarkInfo,
+                        frameSettings: frameSettings
+                    )
                 case .polaroid:
                     // 已在上面处理
                     break
@@ -635,6 +642,167 @@ class PhotoDecorationRenderer {
                 }
             } else {
                 print("🏷️ 宝丽来相框 - selectedLogo为nil")
+            }
+        }
+    }
+    
+    // 渲染直接水印（无相框时使用）
+    private func renderDirectWatermark(
+        imageSize: CGSize,
+        customText: String,
+        selectedLogo: String?,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
+    ) {
+        // 检查是否有任何内容需要渲染
+        let hasLogo = selectedLogo != nil
+        let hasText = !customText.isEmpty
+        let hasWatermarkInfo = watermarkInfo != nil && frameSettings != nil
+        
+        // 如果没有任何内容需要显示，则不渲染
+        guard hasLogo || hasText || hasWatermarkInfo else {
+            return
+        }
+        
+        autoreleasepool {
+            // 设置基础参数
+            let margin: CGFloat = min(imageSize.width, imageSize.height) * 0.03
+            let fontSize = min(imageSize.width, imageSize.height) * 0.025
+            let textSpacing: CGFloat = fontSize * 0.3 // 文字和拍摄信息之间的间距
+            
+            // 准备文字和拍摄信息
+            var textSize = CGSize.zero
+            var infoSize = CGSize.zero
+            var infoText = ""
+            
+            // 1. 准备自定义文字
+            let textFont = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+            let textAttributes: [NSAttributedString.Key: Any] = [
+                .font: textFont,
+                .foregroundColor: UIColor.white
+            ]
+            
+            if hasText {
+                textSize = customText.size(withAttributes: textAttributes)
+            }
+            
+            // 2. 准备拍摄信息
+            if let watermark = watermarkInfo, let settings = frameSettings {
+                var infoComponents: [String] = []
+                
+                // 收集需要显示的信息
+                if settings.showDeviceModel {
+                    infoComponents.append(DeviceInfoHelper.getDeviceModel())
+                }
+                
+                if settings.showFocalLength {
+                    infoComponents.append("\(Int(watermark.focalLength))mm")
+                }
+                
+                if settings.showShutterSpeed {
+                    infoComponents.append(formatShutterSpeed(watermark.shutterSpeed))
+                }
+                
+                if settings.showISO {
+                    infoComponents.append("ISO\(Int(watermark.iso))")
+                }
+                
+                if settings.showAperture {
+                    infoComponents.append("f/2.8") // 默认光圈值，可根据需要调整
+                }
+                
+                // 添加日期
+                if settings.showDate {
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy.MM.dd"
+                    infoComponents.append(dateFormatter.string(from: Date()))
+                }
+                
+                if !infoComponents.isEmpty {
+                    infoText = infoComponents.joined(separator: " | ")
+                    let infoFont = UIFont.systemFont(ofSize: fontSize * 0.8)
+                    let infoAttributes: [NSAttributedString.Key: Any] = [
+                        .font: infoFont,
+                        .foregroundColor: UIColor.white.withAlphaComponent(0.8)
+                    ]
+                    infoSize = infoText.size(withAttributes: infoAttributes)
+                }
+            }
+            
+            // 3. 计算整体布局
+            // 计算文字和信息的总高度
+            var textInfoTotalHeight: CGFloat = 0
+            if hasText {
+                textInfoTotalHeight += textSize.height
+            }
+            if !infoText.isEmpty {
+                textInfoTotalHeight += infoSize.height
+                if hasText {
+                    textInfoTotalHeight += textSpacing // 文字和信息之间的间距
+                }
+            }
+            
+            // 获取Logo信息
+            var logoImage: UIImage?
+            var logoSize = CGSize.zero
+            if let logoName = selectedLogo {
+                let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.05  // 从0.08缩小到0.05
+                logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight)
+                logoSize = logoImage?.size ?? CGSize.zero
+            }
+            
+            // 计算垂直对齐的起始Y位置
+            let contentHeight = max(logoSize.height, textInfoTotalHeight)
+            let startY = imageSize.height - margin - contentHeight
+            
+            // 4. 渲染Logo（左侧，垂直居中）
+            if let logo = logoImage, hasLogo {
+                let logoY = startY + (contentHeight - logoSize.height) / 2 // 垂直居中
+                let logoRect = CGRect(
+                    x: margin,
+                    y: logoY,
+                    width: logoSize.width,
+                    height: logoSize.height
+                )
+                
+                logo.draw(in: logoRect)
+            }
+            
+            // 5. 渲染文字和拍摄信息（右侧，右对齐，整体垂直居中）
+            let rightContentX = imageSize.width - margin
+            let textInfoStartY = startY + (contentHeight - textInfoTotalHeight) / 2 // 整体垂直居中
+            var currentY = textInfoStartY
+            
+            // 渲染自定义文字
+            if hasText {
+                let textRect = CGRect(
+                    x: rightContentX - textSize.width,
+                    y: currentY,
+                    width: textSize.width,
+                    height: textSize.height
+                )
+                
+                customText.draw(in: textRect, withAttributes: textAttributes)
+                currentY += textSize.height + textSpacing
+            }
+            
+            // 渲染拍摄信息
+            if !infoText.isEmpty {
+                let infoFont = UIFont.systemFont(ofSize: fontSize * 0.8)
+                let infoAttributes: [NSAttributedString.Key: Any] = [
+                    .font: infoFont,
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.8)
+                ]
+                
+                let infoRect = CGRect(
+                    x: rightContentX - infoSize.width,
+                    y: currentY,
+                    width: infoSize.width,
+                    height: infoSize.height
+                )
+                
+                infoText.draw(in: infoRect, withAttributes: infoAttributes)
             }
         }
     }
