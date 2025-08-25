@@ -233,12 +233,12 @@ class PhotoDecorationRenderer {
         }
         
         let barRect = CGRect(x: 0, y: imageSize.height - barHeight, width: imageSize.width, height: barHeight)
-        UIColor.black.setFill()
+        UIColor.white.setFill()
         UIRectFill(barRect)
         
         // 文字颜色
-        UIColor.white.setFill()
-        UIColor.white.setStroke()
+        UIColor.black.setFill()
+        UIColor.black.setStroke()
         
         // 收集需要显示的信息组件
         var infoComponents: [String] = []
@@ -349,7 +349,7 @@ class PhotoDecorationRenderer {
                     let exifFont = UIFont.systemFont(ofSize: barHeight * 0.25, weight: .regular)
                     let exifAttributes: [NSAttributedString.Key: Any] = [
                         .font: exifFont,
-                        .foregroundColor: UIColor.white
+                        .foregroundColor: UIColor.black
                     ]
                     
                     let exifSize = exifText.size(withAttributes: exifAttributes)
@@ -375,29 +375,65 @@ class PhotoDecorationRenderer {
         watermarkInfo: CameraCaptureSettings?,
         frameSettings: FrameSettings?
     ) {
-        // 绘制半透明Logo - 保持宽高比
+        let hasLogo = selectedLogo != nil
+        let hasText = !customText.isEmpty
+        
+        // 计算logo和文字的尺寸
+        var logoSize = CGSize.zero
+        var textSize = CGSize.zero
+        
+        if hasLogo {
+            autoreleasepool {
+                let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.2
+                if let logoImage = getLogoImage(selectedLogo!, maxHeight: logoMaxHeight) {
+                    logoSize = logoImage.size
+                }
+            }
+        }
+        
+        if hasText {
+            let textFont = UIFont.systemFont(ofSize: min(imageSize.width, imageSize.height) * 0.03, weight: .medium)
+            let textAttributes: [NSAttributedString.Key: Any] = [
+                .font: textFont,
+                .foregroundColor: UIColor.white.withAlphaComponent(0.7)
+            ]
+            textSize = customText.size(withAttributes: textAttributes)
+        }
+        
+        // 计算总的内容高度和居中位置
+        let spacing: CGFloat = min(imageSize.width, imageSize.height) * 0.04
+        var totalHeight: CGFloat = 0
+        if hasLogo { totalHeight += logoSize.height }
+        if hasText { totalHeight += textSize.height }
+        if hasLogo && hasText { totalHeight += spacing }
+        
+        // 计算起始Y位置（整体垂直居中）
+        let startY = imageSize.height / 2 - totalHeight / 2
+        var currentY = startY
+        
+        // 绘制半透明Logo - 保持宽高比，垂直居中对齐
         if let logoName = selectedLogo {
             autoreleasepool {
                 let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.2
                 if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                    let logoWidth = logoImage.size.width
-                    let logoHeight = logoImage.size.height
                     let logoRect = CGRect(
-                        x: imageSize.width / 2 - logoWidth / 2,
-                        y: imageSize.height / 2 - logoHeight / 2,
-                        width: logoWidth,
-                        height: logoHeight
+                        x: imageSize.width / 2 - logoSize.width / 2,
+                        y: currentY,
+                        width: logoSize.width,
+                        height: logoSize.height
                     )
                     
                     // 设置透明度
                     UIGraphicsGetCurrentContext()?.setAlpha(0.3)
                     logoImage.draw(in: logoRect)
                     UIGraphicsGetCurrentContext()?.setAlpha(1.0)
+                    
+                    currentY += logoSize.height + (hasText ? spacing : 0)
                 }
             }
         }
         
-        // 绘制自定义文字
+        // 绘制自定义文字 - 垂直居中对齐
         if !customText.isEmpty {
             autoreleasepool {
                 let textFont = UIFont.systemFont(ofSize: min(imageSize.width, imageSize.height) * 0.03, weight: .medium)
@@ -406,10 +442,9 @@ class PhotoDecorationRenderer {
                     .foregroundColor: UIColor.white.withAlphaComponent(0.7)
                 ]
                 
-                let textSize = customText.size(withAttributes: textAttributes)
                 let textRect = CGRect(
                     x: imageSize.width / 2 - textSize.width / 2,
-                    y: imageSize.height / 2 + min(imageSize.width, imageSize.height) * 0.12,
+                    y: currentY,
                     width: textSize.width,
                     height: textSize.height
                 )
@@ -435,19 +470,23 @@ class PhotoDecorationRenderer {
         frameSettings: FrameSettings?
     ) {
         autoreleasepool {
-            // 顶部黑色条
+            // 顶部白色条
             let topBarHeight = imageSize.height * 0.1
             let topBarRect = CGRect(x: 0, y: 0, width: imageSize.width, height: topBarHeight)
-            UIColor.black.setFill()
+            UIColor.white.setFill()
             UIRectFill(topBarRect)
             
-            // 底部黑色条
+            // 底部白色条
             let bottomBarHeight = imageSize.height * 0.05
             let bottomBarRect = CGRect(x: 0, y: imageSize.height - bottomBarHeight, width: imageSize.width, height: bottomBarHeight)
-            UIColor.black.setFill()
+            UIColor.white.setFill()
             UIRectFill(bottomBarRect)
             
-            // 绘制Logo - 保持宽高比
+            // 检查是否有logo和文字
+            let hasLogo = selectedLogo != nil
+            let hasText = !customText.isEmpty
+            
+            // 绘制Logo - 保持宽高比，垂直居中
             if let logoName = selectedLogo {
                 let logoMaxHeight = topBarHeight * 0.6
                 if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
@@ -464,17 +503,18 @@ class PhotoDecorationRenderer {
                 }
             }
             
-            // 绘制自定义文字（标题） - 去掉加粗
+            // 绘制自定义文字（标题） - 垂直居中
             if !customText.isEmpty {
-                let textFont = UIFont.systemFont(ofSize: topBarHeight * 0.4, weight: .regular) // 改为regular
+                let textFont = UIFont.systemFont(ofSize: topBarHeight * 0.4, weight: .regular)
                 let textAttributes: [NSAttributedString.Key: Any] = [
                     .font: textFont,
-                    .foregroundColor: UIColor.white.withAlphaComponent(0.8)
+                    .foregroundColor: UIColor.black.withAlphaComponent(0.8)
                 ]
                 
                 let textSize = customText.size(withAttributes: textAttributes)
+                // 如果没有logo，文字在顶部条中垂直居中；有logo时保持右对齐
                 let textRect = CGRect(
-                    x: imageSize.width - textSize.width - 20,
+                    x: hasLogo ? (imageSize.width - textSize.width - 20) : (imageSize.width / 2 - textSize.width / 2),
                     y: topBarHeight / 2 - textSize.height / 2,
                     width: textSize.width,
                     height: textSize.height
@@ -492,7 +532,7 @@ class PhotoDecorationRenderer {
                 let dateFont = UIFont.systemFont(ofSize: bottomBarHeight * 0.6, weight: .medium)
                 let dateAttributes: [NSAttributedString.Key: Any] = [
                     .font: dateFont,
-                    .foregroundColor: UIColor.white.withAlphaComponent(0.8) // 调整透明度
+                    .foregroundColor: UIColor.black.withAlphaComponent(0.8)
                 ]
                 
                 let dateSize = dateString.size(withAttributes: dateAttributes)
@@ -518,7 +558,7 @@ class PhotoDecorationRenderer {
         }
     }
     
-    // 统一布局：Logo左侧，文字右对齐
+    // 统一布局：Logo左侧，文字右对齐，垂直居中
     private func renderTextWithUnifiedLayout(
         imageSize: CGSize,
         barHeight: CGFloat,
@@ -531,24 +571,67 @@ class PhotoDecorationRenderer {
         metadata: [String: Any]
     ) {
         let rightMargin: CGFloat = 20
+        let hasLogo = logoWidth > 0
+        
+        // 计算所有文字的总高度
+        var totalTextHeight: CGFloat = 0
+        var mainSize = CGSize.zero
+        var infoSize = CGSize.zero
+        var paramSize = CGSize.zero
+        
+        if !customText.isEmpty {
+            let mainFont = UIFont.systemFont(ofSize: barHeight * 0.4, weight: .regular)
+            let mainAttributes: [NSAttributedString.Key: Any] = [
+                .font: mainFont,
+                .foregroundColor: UIColor.black.withAlphaComponent(0.7)
+            ]
+            mainSize = customText.size(withAttributes: mainAttributes)
+            totalTextHeight += mainSize.height
+        }
+        
+        if !firstLine.isEmpty {
+            let infoFont = UIFont.systemFont(ofSize: barHeight * 0.28, weight: .regular)
+            let infoAttributes: [NSAttributedString.Key: Any] = [
+                .font: infoFont,
+                .foregroundColor: UIColor.black.withAlphaComponent(0.6)
+            ]
+            infoSize = firstLine.size(withAttributes: infoAttributes)
+            totalTextHeight += infoSize.height
+            if !customText.isEmpty { totalTextHeight += 4 } // 间距
+        }
+        
+        if !secondLine.isEmpty {
+            let paramFont = UIFont.systemFont(ofSize: barHeight * 0.25, weight: .light)
+            let paramAttributes: [NSAttributedString.Key: Any] = [
+                .font: paramFont,
+                .foregroundColor: UIColor.black.withAlphaComponent(0.5)
+            ]
+            paramSize = secondLine.size(withAttributes: paramAttributes)
+            totalTextHeight += paramSize.height
+            if (!customText.isEmpty || !firstLine.isEmpty) { totalTextHeight += 4 } // 间距
+        }
+        
+        // 计算文字块的起始Y位置（垂直居中）
+        let textBlockStartY = imageSize.height - barHeight + (barHeight - totalTextHeight) / 2
+        var currentY = textBlockStartY
         
         // 绘制主文字 - 右对齐
         if !customText.isEmpty {
             let mainFont = UIFont.systemFont(ofSize: barHeight * 0.4, weight: .regular)
             let mainAttributes: [NSAttributedString.Key: Any] = [
                 .font: mainFont,
-                .foregroundColor: UIColor.white.withAlphaComponent(0.7)
+                .foregroundColor: UIColor.black.withAlphaComponent(0.7)
             ]
             
-            let mainSize = customText.size(withAttributes: mainAttributes)
             let mainRect = CGRect(
                 x: imageSize.width - rightMargin - mainSize.width,
-                y: imageSize.height - barHeight + barHeight * 0.15,
+                y: currentY,
                 width: mainSize.width,
                 height: mainSize.height
             )
             
             customText.draw(in: mainRect, withAttributes: mainAttributes)
+            currentY += mainSize.height + 4
         }
         
         // 绘制第一行信息 - 右对齐
@@ -556,18 +639,18 @@ class PhotoDecorationRenderer {
             let infoFont = UIFont.systemFont(ofSize: barHeight * 0.28, weight: .regular)
             let infoAttributes: [NSAttributedString.Key: Any] = [
                 .font: infoFont,
-                .foregroundColor: UIColor.white.withAlphaComponent(0.6)
+                .foregroundColor: UIColor.black.withAlphaComponent(0.6)
             ]
             
-            let infoSize = firstLine.size(withAttributes: infoAttributes)
             let infoRect = CGRect(
                 x: imageSize.width - rightMargin - infoSize.width,
-                y: imageSize.height - 8 - infoSize.height - (secondLine.isEmpty ? 0 : barHeight * 0.25 + 4),
+                y: currentY,
                 width: infoSize.width,
                 height: infoSize.height
             )
             
             firstLine.draw(in: infoRect, withAttributes: infoAttributes)
+            currentY += infoSize.height + 4
         }
         
         // 绘制第二行信息 - 右对齐
@@ -575,13 +658,12 @@ class PhotoDecorationRenderer {
             let paramFont = UIFont.systemFont(ofSize: barHeight * 0.25, weight: .light)
             let paramAttributes: [NSAttributedString.Key: Any] = [
                 .font: paramFont,
-                .foregroundColor: UIColor.white.withAlphaComponent(0.5)
+                .foregroundColor: UIColor.black.withAlphaComponent(0.5)
             ]
             
-            let paramSize = secondLine.size(withAttributes: paramAttributes)
             let paramRect = CGRect(
                 x: imageSize.width - rightMargin - paramSize.width,
-                y: imageSize.height - 8 - paramSize.height,
+                y: currentY,
                 width: paramSize.width,
                 height: paramSize.height
             )
@@ -629,9 +711,72 @@ class PhotoDecorationRenderer {
             shadowPath.stroke()
             
             // 绘制自定义文字和水印信息（宝丽来风格）
-            let yOffset = frameSize.height - bottomBorderHeight + bottomBorderHeight * 0.15
+            let hasLogo = selectedLogo != nil
             
-            // 主要文字显示 - 右对齐
+            // 计算文字内容的总高度和布局
+            var totalTextHeight: CGFloat = 0
+            var mainTextSize = CGSize.zero
+            var infoTextSize = CGSize.zero
+            
+            // 计算主文字尺寸
+            if !customText.isEmpty {
+                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.35, weight: .regular)
+                let mainAttributes: [NSAttributedString.Key: Any] = [
+                    .font: mainFont,
+                    .foregroundColor: UIColor.black.withAlphaComponent(0.6)
+                ]
+                mainTextSize = customText.size(withAttributes: mainAttributes)
+                totalTextHeight += mainTextSize.height
+            }
+            
+            // 计算信息文字尺寸
+            var infoText = ""
+            if let watermark = watermarkInfo {
+                var infoLine: [String] = []
+                
+                if frameSettings?.showDeviceModel == true {
+                    infoLine.append(DeviceInfoHelper.getDeviceModel())
+                }
+                if frameSettings?.showFocalLength == true {
+                    infoLine.append("\(Int(watermark.focalLength))mm")
+                }
+                if frameSettings?.showShutterSpeed == true {
+                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
+                    infoLine.append(shutterDisplay)
+                }
+                if frameSettings?.showISO == true {
+                    infoLine.append("ISO\(Int(watermark.iso))")
+                }
+                if frameSettings?.showAperture == true {
+                    if let exif = metadata["exif"] as? [String: Any],
+                       let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
+                        infoLine.append("f/\(aperture)")
+                    }
+                }
+                if frameSettings?.showDate == true {
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy.MM.dd"
+                    infoLine.append(dateFormatter.string(from: Date()))
+                }
+                
+                if !infoLine.isEmpty {
+                    infoText = infoLine.joined(separator: " | ")
+                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
+                    let infoAttributes: [NSAttributedString.Key: Any] = [
+                        .font: infoFont,
+                        .foregroundColor: UIColor.black.withAlphaComponent(0.4)
+                    ]
+                    infoTextSize = infoText.size(withAttributes: infoAttributes)
+                    totalTextHeight += infoTextSize.height
+                    if !customText.isEmpty { totalTextHeight += bottomBorderHeight * 0.1 } // 间距
+                }
+            }
+            
+            // 计算文字块的起始Y位置（在底部边框中垂直居中）
+            let textBlockStartY = frameSize.height - bottomBorderHeight + (bottomBorderHeight - totalTextHeight) / 2
+            var currentY = textBlockStartY
+            
+            // 主要文字显示 - 右对齐或居中（取决于是否有logo）
             if !customText.isEmpty {
                 let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.35, weight: .regular)
                 let mainAttributes: [NSAttributedString.Key: Any] = [
@@ -639,79 +784,35 @@ class PhotoDecorationRenderer {
                     .foregroundColor: UIColor.black.withAlphaComponent(0.6)
                 ]
                 
-                let mainSize = customText.size(withAttributes: mainAttributes)
                 let rightMargin: CGFloat = borderWidth
                 let mainRect = CGRect(
-                    x: frameSize.width - rightMargin - mainSize.width,
-                    y: yOffset,
-                    width: mainSize.width,
-                    height: mainSize.height
+                    x: hasLogo ? (frameSize.width - rightMargin - mainTextSize.width) : (frameSize.width / 2 - mainTextSize.width / 2),
+                    y: currentY,
+                    width: mainTextSize.width,
+                    height: mainTextSize.height
                 )
                 
                 customText.draw(in: mainRect, withAttributes: mainAttributes)
+                currentY += mainTextSize.height + (infoText.isEmpty ? 0 : bottomBorderHeight * 0.1)
             }
             
-            // 如果有水印信息，根据相框设置显示
-            if let watermark = watermarkInfo {
-                var infoLine: [String] = []
+            // 绘制信息文字 - 右对齐或居中（取决于是否有logo）
+            if !infoText.isEmpty {
+                let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
+                let infoAttributes: [NSAttributedString.Key: Any] = [
+                    .font: infoFont,
+                    .foregroundColor: UIColor.black.withAlphaComponent(0.4)
+                ]
                 
-                // 根据开关状态收集信息
-                if frameSettings?.showDeviceModel == true {
-                    infoLine.append(DeviceInfoHelper.getDeviceModel())
-                }
+                let rightMargin: CGFloat = borderWidth
+                let infoRect = CGRect(
+                    x: hasLogo ? (frameSize.width - rightMargin - infoTextSize.width) : (frameSize.width / 2 - infoTextSize.width / 2),
+                    y: currentY,
+                    width: infoTextSize.width,
+                    height: infoTextSize.height
+                )
                 
-                if frameSettings?.showFocalLength == true {
-                    infoLine.append("\(Int(watermark.focalLength))mm")
-                }
-                
-                if frameSettings?.showShutterSpeed == true {
-                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
-                    infoLine.append(shutterDisplay)
-                }
-                
-                if frameSettings?.showISO == true {
-                    infoLine.append("ISO\(Int(watermark.iso))")
-                }
-                
-                if frameSettings?.showAperture == true {
-                    if let exif = metadata["exif"] as? [String: Any],
-                       let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
-                        infoLine.append("f/\(aperture)")
-                    }
-                }
-                
-                if frameSettings?.showDate == true {
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "yyyy.MM.dd"
-                    infoLine.append(dateFormatter.string(from: Date()))
-                }
-                
-                // 绘制信息行 - 右对齐，与logo垂直居中对齐
-                if !infoLine.isEmpty {
-                    let infoText = infoLine.joined(separator: " | ")
-                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
-                    let infoAttributes: [NSAttributedString.Key: Any] = [
-                        .font: infoFont,
-                        .foregroundColor: UIColor.black.withAlphaComponent(0.4)
-                    ]
-                    
-                    let infoSize = infoText.size(withAttributes: infoAttributes)
-                    let rightMargin: CGFloat = borderWidth
-                    
-                    // 如果没有自定义文字，与logo垂直居中对齐；有文字时保持原来的位置
-                    let infoY = customText.isEmpty ? 
-                        (frameSize.height - bottomBorderHeight / 2 - infoSize.height / 2) :
-                        (yOffset + bottomBorderHeight * 0.35)
-                    
-                    let infoRect = CGRect(
-                        x: frameSize.width - rightMargin - infoSize.width,
-                        y: infoY,
-                        width: infoSize.width,
-                        height: infoSize.height
-                    )
-                    
-                    infoText.draw(in: infoRect, withAttributes: infoAttributes)
-                }
+                infoText.draw(in: infoRect, withAttributes: infoAttributes)
             }
             
             // 绘制Logo - 保持宽高比
