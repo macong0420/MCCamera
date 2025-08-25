@@ -53,61 +53,81 @@ class PhotoDecorationRenderer {
                 return
             }
             
-            // 创建绘图上下文
-            UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
-            defer { UIGraphicsEndImageContext() }
-            
-            // 绘制原始图像
-            renderImage.draw(at: CGPoint.zero)
-            
-            // 根据相框类型应用不同的装饰
-            switch frameType {
-            case .bottomText:
-                renderBottomTextFrame(
-                    imageSize: renderImage.size,
-                    customText: customText,
-                    showDate: showDate,
-                    showLocation: showLocation,
-                    showExif: showExif,
-                    showExifParams: showExifParams,
-                    showExifDate: showExifDate,
-                    selectedLogo: selectedLogo,
-                    showSignature: showSignature,
-                    metadata: metadata
+            // 🐛 修复：根据相框类型决定是否需要特殊处理
+            if frameType == .polaroid {
+                // 宝丽来相框需要特殊处理：创建更大的画布
+                let borderWidth: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.05
+                let bottomBorderHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.15
+                let frameSize = CGSize(
+                    width: renderImage.size.width + borderWidth * 2,
+                    height: renderImage.size.height + borderWidth + bottomBorderHeight
                 )
                 
-            case .centerWatermark:
-                renderCenterWatermarkFrame(
-                    imageSize: renderImage.size,
-                    customText: customText,
-                    selectedLogo: selectedLogo,
-                    metadata: metadata
-                )
+                UIGraphicsBeginImageContextWithOptions(frameSize, false, renderImage.scale)
+                defer { UIGraphicsEndImageContext() }
                 
-            case .magazineCover:
-                renderMagazineCoverFrame(
-                    imageSize: renderImage.size,
-                    customText: customText,
-                    showDate: showDate,
-                    selectedLogo: selectedLogo,
-                    metadata: metadata
-                )
-                
-            case .polaroid:
                 renderPolaroidFrame(
-                    imageSize: renderImage.size,
+                    image: renderImage,
+                    frameSize: frameSize,
                     customText: customText,
                     showDate: showDate,
                     metadata: metadata
                 )
                 
-            case .none:
-                // 不应用任何装饰
-                break
+                // 🔥 修复：直接在宝丽来分支中获取图像
+                finalImage = UIGraphicsGetImageFromCurrentImageContext()
+            } else {
+                // 其他相框类型：在原图上添加装饰
+                UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
+                defer { UIGraphicsEndImageContext() }
+                
+                // 绘制原始图像
+                renderImage.draw(at: CGPoint.zero)
+                
+                // 根据相框类型应用不同的装饰
+                switch frameType {
+                case .bottomText:
+                    renderBottomTextFrame(
+                        imageSize: renderImage.size,
+                        customText: customText,
+                        showDate: showDate,
+                        showLocation: showLocation,
+                        showExif: showExif,
+                        showExifParams: showExifParams,
+                        showExifDate: showExifDate,
+                        selectedLogo: selectedLogo,
+                        showSignature: showSignature,
+                        metadata: metadata
+                    )
+                    
+                case .centerWatermark:
+                    renderCenterWatermarkFrame(
+                        imageSize: renderImage.size,
+                        customText: customText,
+                        selectedLogo: selectedLogo,
+                        metadata: metadata
+                    )
+                    
+                case .magazineCover:
+                    renderMagazineCoverFrame(
+                        imageSize: renderImage.size,
+                        customText: customText,
+                        showDate: showDate,
+                        selectedLogo: selectedLogo,
+                        metadata: metadata
+                    )
+                    
+                case .none:
+                    // 不应用任何装饰
+                    break
+                case .polaroid:
+                    // 已在上面处理
+                    break
+                }
+                
+                // 🔥 修复：在其他相框分支中获取图像
+                finalImage = UIGraphicsGetImageFromCurrentImageContext()
             }
-            
-            // 获取最终图像
-            finalImage = UIGraphicsGetImageFromCurrentImageContext()
         }
         
         // 如果处理失败，返回原始图像
@@ -399,40 +419,40 @@ class PhotoDecorationRenderer {
         }
     }
     
-    // 渲染宝丽来相框
+    // 🐛 修复：新的宝丽来相框渲染方法，接受原始图像参数
     private func renderPolaroidFrame(
-        imageSize: CGSize,
+        image: UIImage,
+        frameSize: CGSize,
         customText: String,
         showDate: Bool,
         metadata: [String: Any]
     ) {
         autoreleasepool {
             // 计算宝丽来相框的尺寸和位置
-            let borderWidth: CGFloat = min(imageSize.width, imageSize.height) * 0.05
-            let bottomBorderHeight: CGFloat = min(imageSize.width, imageSize.height) * 0.15
+            let borderWidth: CGFloat = min(image.size.width, image.size.height) * 0.05
+            let bottomBorderHeight: CGFloat = min(image.size.width, image.size.height) * 0.15
             
-            // 绘制白色背景框
-            let frameRect = CGRect(
-                x: 0,
-                y: 0,
-                width: imageSize.width,
-                height: imageSize.height
-            )
+            // 绘制白色背景框（整个相框的背景）
+            let fullRect = CGRect(x: 0, y: 0, width: frameSize.width, height: frameSize.height)
             UIColor.white.setFill()
-            UIRectFill(frameRect)
+            UIRectFill(fullRect)
             
-            // 绘制照片区域（稍微缩小以留出边框）
+            // 计算照片在相框中的位置
             let photoRect = CGRect(
                 x: borderWidth,
                 y: borderWidth,
-                width: imageSize.width - borderWidth * 2,
-                height: imageSize.height - borderWidth - bottomBorderHeight
+                width: image.size.width,
+                height: image.size.height
             )
             
-            // 添加照片区域的阴影效果
+            // 🐛 修复：绘制原始照片到指定的照片区域
+            image.draw(in: photoRect)
+            
+            // 添加照片区域的阴影效果（可选）
             let shadowPath = UIBezierPath(rect: photoRect)
-            UIColor.black.withAlphaComponent(0.1).setFill()
-            shadowPath.fill()
+            UIColor.black.withAlphaComponent(0.1).setStroke()
+            shadowPath.lineWidth = 2
+            shadowPath.stroke()
             
             // 绘制自定义文字
             if !customText.isEmpty {
@@ -444,8 +464,8 @@ class PhotoDecorationRenderer {
                 
                 let textSize = customText.size(withAttributes: textAttributes)
                 let textRect = CGRect(
-                    x: imageSize.width / 2 - textSize.width / 2,
-                    y: imageSize.height - bottomBorderHeight / 2 - textSize.height / 2,
+                    x: frameSize.width / 2 - textSize.width / 2,
+                    y: frameSize.height - bottomBorderHeight / 2 - textSize.height / 2,
                     width: textSize.width,
                     height: textSize.height
                 )
@@ -467,8 +487,8 @@ class PhotoDecorationRenderer {
                 
                 let dateSize = dateString.size(withAttributes: dateAttributes)
                 let dateRect = CGRect(
-                    x: imageSize.width - dateSize.width - borderWidth,
-                    y: imageSize.height - dateSize.height - borderWidth * 0.5,
+                    x: frameSize.width - dateSize.width - borderWidth,
+                    y: frameSize.height - dateSize.height - borderWidth * 0.5,
                     width: dateSize.width,
                     height: dateSize.height
                 )
