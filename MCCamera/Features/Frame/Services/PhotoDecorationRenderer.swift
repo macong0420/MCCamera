@@ -104,6 +104,7 @@ class PhotoDecorationRenderer {
                     frameSize: frameSize,
                     customText: customText,
                     showDate: showDate,
+                    selectedLogo: selectedLogo,
                     metadata: metadata,
                     watermarkInfo: watermarkInfo
                 )
@@ -171,7 +172,12 @@ class PhotoDecorationRenderer {
     
     // 优化：预加载和缓存Logo图像
     private func getLogoImage(_ logoName: String, maxSize: CGFloat) -> UIImage? {
-        guard let logoImage = UIImage(named: logoName) else { return nil }
+        print("🏷️ 尝试加载Logo: \(logoName)")
+        guard let logoImage = UIImage(named: logoName) else { 
+            print("❌ 无法加载Logo图像: \(logoName)")
+            return nil 
+        }
+        print("✅ 成功加载Logo: \(logoName), 尺寸: \(logoImage.size)")
         
         // 如果Logo图像过大，缩小它
         if max(logoImage.size.width, logoImage.size.height) > maxSize {
@@ -305,6 +311,7 @@ class PhotoDecorationRenderer {
         
         // 绘制Logo
         if let logoName = selectedLogo {
+            print("🏷️ 底部文字相框 - 开始绘制Logo: \(logoName)")
             autoreleasepool {
                 let logoSize = barHeight * 0.7
                 if let logoImage = getLogoImage(logoName, maxSize: logoSize * 2) {
@@ -315,9 +322,14 @@ class PhotoDecorationRenderer {
                         height: logoSize
                     )
                     
+                    print("🏷️ 底部文字相框 - Logo绘制位置: \(logoRect)")
                     logoImage.draw(in: logoRect)
+                } else {
+                    print("❌ 底部文字相框 - getLogoImage返回nil")
                 }
             }
+        } else {
+            print("🏷️ 底部文字相框 - selectedLogo为nil")
         }
         
         // 绘制EXIF信息
@@ -512,6 +524,7 @@ class PhotoDecorationRenderer {
         frameSize: CGSize,
         customText: String,
         showDate: Bool,
+        selectedLogo: String?,
         metadata: [String: Any],
         watermarkInfo: CameraCaptureSettings?
     ) {
@@ -595,6 +608,29 @@ class PhotoDecorationRenderer {
                 )
                 
                 displayText.draw(in: textRect, withAttributes: textAttributes)
+            }
+            
+            // 绘制Logo
+            if let logoName = selectedLogo {
+                print("🏷️ 宝丽来相框 - 开始绘制Logo: \(logoName)")
+                autoreleasepool {
+                    let logoSize = bottomBorderHeight * 0.6
+                    if let logoImage = getLogoImage(logoName, maxSize: logoSize * 2) {
+                        let logoRect = CGRect(
+                            x: borderWidth,
+                            y: frameSize.height - bottomBorderHeight / 2 - logoSize / 2,
+                            width: logoSize,
+                            height: logoSize
+                        )
+                        
+                        print("🏷️ 宝丽来相框 - Logo绘制位置: \(logoRect)")
+                        logoImage.draw(in: logoRect)
+                    } else {
+                        print("❌ 宝丽来相框 - getLogoImage返回nil")
+                    }
+                }
+            } else {
+                print("🏷️ 宝丽来相框 - selectedLogo为nil")
             }
             
             // 绘制日期
