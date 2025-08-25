@@ -5,8 +5,6 @@ import SwiftUI
 enum FrameType: String, CaseIterable, Identifiable {
     case none = "无"
     case bottomText = "底部文字"
-    case centerWatermark = "水印居中"
-    case magazineCover = "杂志封面"
     case polaroid = "宝丽来"  // 添加宝丽来相框类型
     
     var id: String { self.rawValue }
@@ -18,10 +16,6 @@ enum FrameType: String, CaseIterable, Identifiable {
             return nil
         case .bottomText:
             return "底部文字"
-        case .centerWatermark:
-            return "水印居中"
-        case .magazineCover:
-            return "杂志封面"
         case .polaroid:
             return "baolilai"  // 修改为正确的图片资源名称
         }

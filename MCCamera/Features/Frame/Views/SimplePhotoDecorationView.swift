@@ -10,8 +10,8 @@ struct SimplePhotoDecorationView: View {
             // 相框类型选择
             VStack(alignment: .leading, spacing: 10) {
                 Text("相框样式")
-                    .font(.headline)
-                    .foregroundColor(.white)
+                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
                 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 15) {
@@ -27,8 +27,8 @@ struct SimplePhotoDecorationView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Logo")
-                        .font(.headline)
-                        .foregroundColor(.white)
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
                     
                     Spacer()
                     
@@ -69,8 +69,8 @@ struct SimplePhotoDecorationView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("文字")
-                        .font(.headline)
-                        .foregroundColor(.white)
+                        .font(.system(size: 16))
+                        .foregroundColor(.gray)
                     
                     Spacer()
                     
@@ -90,23 +90,11 @@ struct SimplePhotoDecorationView: View {
                 }
             }
             
-            // 签名设置
-            HStack {
-                Text("签名")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                Toggle("", isOn: $frameSettings.showSignature)
-                    .labelsHidden()
-            }
-            
             // 信息设置
             VStack(alignment: .leading, spacing: 10) {
                 Text("信息显示")
-                    .font(.headline)
-                    .foregroundColor(.white)
+                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
                 
                 // 基础信息
                 VStack(alignment: .leading, spacing: 8) {

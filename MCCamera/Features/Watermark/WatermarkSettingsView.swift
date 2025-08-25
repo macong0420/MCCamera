@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WatermarkSettingsView: View {
-    @State private var settings = WatermarkSettings.load()
+    @State private var settings = WatermarkSettings()
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
@@ -44,6 +44,9 @@ struct WatermarkSettingsView: View {
                     presentationMode.wrappedValue.dismiss()
                 }
             )
+            .onAppear {
+                settings = WatermarkSettings.load()
+            }
         }
     }
 }
