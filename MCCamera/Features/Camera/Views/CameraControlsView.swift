@@ -67,6 +67,16 @@ struct CameraControlsView: View {
                 FlashControlView(flashController: viewModel.flashController)
             }
             
+            // 添加相框设置按钮
+            Button(action: { viewModel.toggleFrameSettings() }) {
+                Image(systemName: "square.on.square")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(viewModel.frameSettings.selectedFrame != .none ? .yellow : .white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.3))
+                    .clipShape(Circle())
+            }
+            
             Spacer()
             
             // 🚀 后台处理状态指示器

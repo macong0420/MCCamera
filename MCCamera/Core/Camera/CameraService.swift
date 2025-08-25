@@ -36,6 +36,7 @@ class CameraService: NSObject, ObservableObject {
     
     private var photoCompletionHandler: ((Result<Data, Error>) -> Void)?
     private var currentAspectRatio: AspectRatio?
+    private var currentFrameSettings: FrameSettings?
     
     override init() {
         super.init()
@@ -241,7 +242,7 @@ class CameraService: NSObject, ObservableObject {
         }
     }
     
-    func capturePhoto(aspectRatio: AspectRatio? = nil, flashMode: AVCaptureDevice.FlashMode = .auto, completion: @escaping (Result<Data, Error>) -> Void) {
+    func capturePhoto(aspectRatio: AspectRatio? = nil, flashMode: AVCaptureDevice.FlashMode = .auto, frameSettings: FrameSettings? = nil, completion: @escaping (Result<Data, Error>) -> Void) {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -296,6 +297,10 @@ class CameraService: NSObject, ObservableObject {
             
             self.photoCompletionHandler = completion
             self.currentAspectRatio = aspectRatio
+            
+            // 保存相框设置，用于后续处理
+            self.currentFrameSettings = frameSettings
+            
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -401,8 +406,24 @@ class CameraService: NSObject, ObservableObject {
     
     // 应用水印功能
     private func applyWatermarkIfNeeded(to imageData: Data, photo: AVCapturePhoto) -> Data {
-        let watermarkProcessor = WatermarkProcessor(currentDevice: currentDevice)
-        return watermarkProcessor.processWatermark(imageData: imageData, photo: photo, format: currentPhotoFormat, aspectRatio: currentAspectRatio)
+        var processedData = imageData
+        
+        // 使用autoreleasepool减少内存占用
+        autoreleasepool {
+            // 先应用水印
+            let watermarkProcessor = WatermarkProcessor(currentDevice: currentDevice)
+            let watermarkedData = watermarkProcessor.processWatermark(imageData: imageData, photo: photo, format: currentPhotoFormat, aspectRatio: currentAspectRatio)
+            
+            // 如果设置了相框，应用相框
+            if let frameSettings = currentFrameSettings, frameSettings.selectedFrame != .none {
+                let photoDecorationService = PhotoDecorationService(frameSettings: frameSettings)
+                processedData = photoDecorationService.applyFrameToPhoto(watermarkedData)
+            } else {
+                processedData = watermarkedData
+            }
+        }
+        
+        return processedData
     }
 }
 
@@ -431,37 +452,42 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
-            print("🎨 开始后台水印处理...")
+            print("🎨 开始后台水印和相框处理...")
             
-            // 应用水印功能（在后台线程）
-            let finalImageData = self.applyWatermarkIfNeeded(to: imageData, photo: photo)
+            // 使用autoreleasepool减少内存占用
+            autoreleasepool {
+                // 应用水印和相框功能（在后台线程）
+                let finalImageData = self.applyWatermarkIfNeeded(to: imageData, photo: photo)
+                
+                print("💾 开始后台保存到相册...")
+                
+                // 保存到相册（在后台线程）
+                self.photoProcessor.savePhotoToLibrary(finalImageData, format: self.currentPhotoFormat, aspectRatio: self.currentAspectRatio)
+            }
             
-            print("💾 开始后台保存到相册...")
-            
-            // 保存到相册（在后台线程）
-            self.photoProcessor.savePhotoToLibrary(finalImageData, format: self.currentPhotoFormat, aspectRatio: self.currentAspectRatio)
-            
-            print("✅ 后台处理完成：水印 + 保存")
+            print("✅ 后台处理完成：水印 + 相框 + 保存")
         }
     }
     
     private func verifyImageData(_ imageData: Data) {
         // 🔍 关键调试：检查刚拍摄的原始图像数据
-        if let source = CGImageSourceCreateWithData(imageData as CFData, nil) {
-            if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-                if let pixelWidth = properties[kCGImagePropertyPixelWidth as String] as? Int,
-                   let pixelHeight = properties[kCGImagePropertyPixelHeight as String] as? Int {
-                    let megapixels = (pixelWidth * pixelHeight) / 1_000_000
-                    print("🔍 刚拍摄的原始图像:")
-                    print("  - 尺寸: \(pixelWidth) x \(pixelHeight)")
-                    print("  - 像素数: \(megapixels)MP")
-                    print("  - 预期48MP: \(currentPhotoResolution == .resolution48MP)")
-                    print("  - 实际是48MP: \(megapixels >= 40)")
-                    
-                    if currentPhotoResolution == .resolution48MP && megapixels < 40 {
-                        print("❌ 警告：预期48MP但实际拍摄\(megapixels)MP")
-                    } else if currentPhotoResolution == .resolution48MP && megapixels >= 40 {
-                        print("✅ 成功：48MP模式拍摄了\(megapixels)MP图像")
+        autoreleasepool {
+            if let source = CGImageSourceCreateWithData(imageData as CFData, nil) {
+                if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+                    if let pixelWidth = properties[kCGImagePropertyPixelWidth as String] as? Int,
+                       let pixelHeight = properties[kCGImagePropertyPixelHeight as String] as? Int {
+                        let megapixels = (pixelWidth * pixelHeight) / 1_000_000
+                        print("🔍 刚拍摄的原始图像:")
+                        print("  - 尺寸: \(pixelWidth) x \(pixelHeight)")
+                        print("  - 像素数: \(megapixels)MP")
+                        print("  - 预期48MP: \(currentPhotoResolution == .resolution48MP)")
+                        print("  - 实际是48MP: \(megapixels >= 40)")
+                        
+                        if currentPhotoResolution == .resolution48MP && megapixels < 40 {
+                            print("❌ 警告：预期48MP但实际拍摄\(megapixels)MP")
+                        } else if currentPhotoResolution == .resolution48MP && megapixels >= 40 {
+                            print("✅ 成功：48MP模式拍摄了\(megapixels)MP图像")
+                        }
                     }
                 }
             }

@@ -50,6 +50,17 @@ struct CameraView: View {
                 }
             }
         )
+        .overlay(
+            // 相框设置弹窗
+            Group {
+                if viewModel.showingFrameSettings {
+                    FrameSettingsView(
+                        frameSettings: viewModel.frameSettings,
+                        isPresented: $viewModel.showingFrameSettings
+                    )
+                }
+            }
+        )
     }
     
     private func cameraPreviewLayer(geometry: GeometryProxy) -> some View {

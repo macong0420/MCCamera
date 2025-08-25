@@ -3,6 +3,10 @@ import AVFoundation
 import Combine
 
 class CameraViewModel: ObservableObject {
+    // 添加frameSettings属性
+    @Published var frameSettings = FrameSettings()
+    @Published var showingFrameSettings = false
+    
     @Published var isAuthorized = false
     @Published var showingAlert = false
     @Published var alertMessage = ""
@@ -234,7 +238,8 @@ class CameraViewModel: ObservableObject {
         
         cameraService.capturePhoto(
             aspectRatio: selectedAspectRatio,
-            flashMode: flashController.getPhotoFlashMode()
+            flashMode: flashController.getPhotoFlashMode(),
+            frameSettings: frameSettings  // 添加frameSettings参数
         ) { [weak self] result in
             DispatchQueue.main.async {
                 // 🚀 立即释放拍摄状态，允许连续拍摄
@@ -591,6 +596,11 @@ class CameraViewModel: ObservableObject {
     private func showAlert(message: String) {
         alertMessage = message
         showingAlert = true
+    }
+    
+    // 添加切换相框设置视图的方法
+    func toggleFrameSettings() {
+        showingFrameSettings.toggle()
     }
 }
 
