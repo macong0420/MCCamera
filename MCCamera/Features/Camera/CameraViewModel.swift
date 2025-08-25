@@ -87,6 +87,14 @@ class CameraViewModel: ObservableObject {
             object: nil
         )
         
+        // 🚀 监听后台处理完成通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleBackgroundProcessingCompleted),
+            name: NSNotification.Name("BackgroundProcessingCompleted"),
+            object: nil
+        )
+        
         // 异步检查权限，避免阻塞UI
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.checkCameraPermission()
@@ -100,6 +108,12 @@ class CameraViewModel: ObservableObject {
             print("📱 设置类型: \(type.rawValue), 值: \(value)")
             applyManualSettings()
         }
+    }
+    
+    // 🚀 新增：处理后台处理完成通知
+    @objc private func handleBackgroundProcessingCompleted() {
+        print("📱 收到后台处理完成通知")
+        finishBackgroundProcessing()
     }
     
     private func loadSettings() {
@@ -234,6 +248,7 @@ class CameraViewModel: ObservableObject {
     func capturePhoto() {
         guard !isCapturing else { return }
         
+        print("📸 开始拍照")
         isCapturing = true
         
         cameraService.capturePhoto(
@@ -247,6 +262,9 @@ class CameraViewModel: ObservableObject {
                 
                 switch result {
                 case .success(let imageData):
+                    let dataSize = imageData.count / (1024 * 1024)
+                    print("📸 拍照成功，数据大小: \(dataSize)MB")
+                    
                     self?.capturedImage = UIImage(data: imageData)
                     
                     // 🚀 启动后台处理指示
@@ -256,6 +274,7 @@ class CameraViewModel: ObservableObject {
                     self?.showTemporaryCaptureFeedback()
                     
                 case .failure(let error):
+                    print("📸 拍照失败: \(error.localizedDescription)")
                     self?.showAlert(message: "拍照失败: \(error.localizedDescription)")
                 }
             }
@@ -268,11 +287,6 @@ class CameraViewModel: ObservableObject {
         isProcessingInBackground = true
         
         print("🚀 开始后台处理，当前处理数量: \(backgroundProcessingCount)")
-        
-        // 模拟后台处理完成（实际中CameraService会通知完成）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.finishBackgroundProcessing()
-        }
     }
     
     private func finishBackgroundProcessing() {

@@ -31,14 +31,19 @@ class HighResolutionCameraManager {
         let deviceModel = DeviceInfoHelper.getDetailedDeviceModel()
         print("📱 设备型号: \(deviceModel)")
         
-        // Step 3: iPhone 14 Pro Max的硬编码检查
+        // Step 3: 48MP支持设备列表（基于Apple官方规格）
         let supportedModels = [
+            // iPhone 14 系列（首次支持48MP）
             "iPhone 14 Pro",
-            "iPhone 14 Pro Max", 
+            "iPhone 14 Pro Max",
+            
+            // iPhone 15 系列（全系支持48MP）
             "iPhone 15",
-            "iPhone 15 Plus",
+            "iPhone 15 Plus", 
             "iPhone 15 Pro",
             "iPhone 15 Pro Max",
+            
+            // iPhone 16 系列（全系支持48MP）
             "iPhone 16",
             "iPhone 16 Plus", 
             "iPhone 16 Pro",

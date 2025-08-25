@@ -9,65 +9,82 @@ class WatermarkProcessor {
     }
     
     func processWatermark(imageData: Data, photo: AVCapturePhoto, format: PhotoFormat, aspectRatio: AspectRatio? = nil) -> Data {
-        let settings = WatermarkSettings.load()
-        
-        print("🏷️ 水印功能检查:")
-        print("  - 水印是否启用: \(settings.isEnabled)")
-        print("  - 作者名字: '\(settings.authorName)'")
-        
-        guard settings.isEnabled else {
-            print("  - 水印未启用，跳过处理")
-            return imageData
-        }
-        
-        // 从图像数据创建UIImage
-        guard let image = UIImage(data: imageData) else {
-            print("  ❌ 无法从数据创建UIImage")
-            return imageData
-        }
-        
-        print("  - 原始图像尺寸: \(image.size)")
-        
-        // 提取相机设置信息
-        let captureSettings = extractCaptureSettings(from: photo)
-        print("  - 相机设置: 焦距\(captureSettings.focalLength)mm, 快门\(captureSettings.shutterSpeed)s, ISO\(captureSettings.iso)")
-        
-        // 应用水印
-        print("  - 开始应用水印...")
-        if let watermarkedImage = WatermarkService.shared.addWatermark(to: image, with: captureSettings, aspectRatio: aspectRatio) {
-            print("  ✅ 水印应用成功")
-            // 根据当前照片格式转换为数据
-            let quality: CGFloat = 0.95
+        // 🚀 优化：使用autoreleasepool包围整个处理过程
+        return autoreleasepool {
+            let settings = WatermarkSettings.load()
+            let dataSize = imageData.count / (1024 * 1024)
             
-            print("  - 转换为\(format.rawValue)格式...")
-            switch format {
-            case .heic:
-                // 尝试转换为HEIC，如果失败则使用JPEG
-                if let heicData = watermarkedImage.heicData(compressionQuality: quality) {
-                    print("  ✅ HEIC转换成功")
-                    return heicData
-                } else {
-                    print("  ⚠️ HEIC转换失败，使用JPEG")
-                    return watermarkedImage.jpegData(compressionQuality: quality) ?? imageData
-                }
-            case .jpeg:
-                if let jpegData = watermarkedImage.jpegData(compressionQuality: quality) {
-                    print("  ✅ JPEG转换成功")
-                    return jpegData
-                } else {
-                    print("  ❌ JPEG转换失败")
-                    return imageData
-                }
-            case .raw:
-                // RAW格式保持原始数据，不应用水印
-                print("  - RAW格式，跳过水印")
+            print("🏷️ 水印处理开始 (数据大小: \(dataSize)MB)")
+            print("  - 水印启用: \(settings.isEnabled)")
+            
+            guard settings.isEnabled else {
+                print("  - 水印未启用，跳过处理")
                 return imageData
             }
-        } else {
-            print("  ❌ 水印应用失败")
+            
+            // 🚀 检查数据大小，如果太大则跳过水印处理
+            if dataSize > 150 {
+                print("  ⚠️ 数据过大(\(dataSize)MB)，跳过水印处理以避免内存爆炸")
+                return imageData
+            }
+            
+            // 🚀 关键优化：延迟图像创建，并立即包装在autoreleasepool中
+            var processedData: Data = imageData
+            
+            autoreleasepool {
+                print("  📊 开始UIImage创建")
+                
+                // 从图像数据创建UIImage（内存密集型操作）
+                guard let image = UIImage(data: imageData) else {
+                    print("  ❌ 无法创建UIImage")
+                    return
+                }
+                
+                print("  - 图像尺寸: \(Int(image.size.width))x\(Int(image.size.height))")
+                
+                // 提取相机设置信息（轻量级操作）
+                let captureSettings = extractCaptureSettings(from: photo)
+                
+                // 应用水印（内存密集型操作）
+                print("  📊 开始应用水印")
+                
+                if let watermarkedImage = WatermarkService.shared.addWatermark(to: image, with: captureSettings, aspectRatio: aspectRatio) {
+                    
+                    // 🚀 立即转换并释放UIImage
+                    autoreleasepool {
+                        let quality: CGFloat = 0.92 // 稍微降低质量以减少内存压力
+                        
+                        switch format {
+                        case .heic:
+                            if let heicData = watermarkedImage.heicData(compressionQuality: quality) {
+                                processedData = heicData
+                                print("  ✅ HEIC处理完成 (\(heicData.count / 1024 / 1024)MB)")
+                            } else {
+                                processedData = watermarkedImage.jpegData(compressionQuality: quality) ?? imageData
+                                print("  ⚠️ HEIC失败，使用JPEG")
+                            }
+                        case .jpeg:
+                            if let jpegData = watermarkedImage.jpegData(compressionQuality: quality) {
+                                processedData = jpegData
+                                print("  ✅ JPEG处理完成 (\(jpegData.count / 1024 / 1024)MB)")
+                            } else {
+                                print("  ❌ JPEG转换失败")
+                            }
+                        case .raw:
+                            print("  - RAW格式跳过水印")
+                        }
+                    }
+                    
+                } else {
+                    print("  ❌ 水印应用失败")
+                }
+                
+                // watermarkedImage和image将在这里自动释放
+            }
+            
+            print("🏷️ 水印处理完成")
+            return processedData
         }
-        
-        return imageData
     }
     
     // 提取拍摄设置信息

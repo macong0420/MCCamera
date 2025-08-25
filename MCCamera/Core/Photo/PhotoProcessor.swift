@@ -17,33 +17,66 @@ class PhotoProcessor {
                 return
             }
             
-            // 使用autoreleasepool减少内存占用
-            autoreleasepool {
-                // 先检查原始数据是否包含完整元数据
-                self?.logOriginalMetadata(imageData)
-                
-                // 应用相框（如果设置了）
-                var processedImageData = imageData
-                if let frameSettings = frameSettings, frameSettings.selectedFrame != .none {
+            let dataSize = imageData.count / (1024 * 1024)
+            print("💾 开始保存照片到相册 (大小: \(dataSize)MB)")
+            
+            // 🚀 关键优化：分步骤处理，每个步骤都有独立的内存管理
+            
+            // 步骤1：处理相框（如果需要）
+            var processedImageData = imageData
+            if let frameSettings = frameSettings, frameSettings.selectedFrame != .none {
+                autoreleasepool {
+                    print("💾 步骤1：应用相框")
                     let photoDecorationService = PhotoDecorationService(frameSettings: frameSettings)
                     processedImageData = photoDecorationService.applyFrameToPhoto(imageData)
-                    print("✅ 已应用相框: \(frameSettings.selectedFrame.rawValue)")
+                    print("✅ 相框应用完成")
                 }
-                
-                // 创建带有完整元数据的图像数据
-                guard let enhancedImageData = self?.createImageWithCompleteMetadata(from: processedImageData, format: format, aspectRatio: aspectRatio) else {
-                    print("❌ 无法创建带有完整元数据的图像")
-                    return
+            }
+            
+            // 步骤2：🚀 智能处理 - 避免重复处理
+            var finalImageData: Data? = processedImageData // 默认使用已处理的数据
+            
+            // 🚀 关键优化：只有在需要比例裁剪时才进行图像重处理
+            let needsImageProcessing = (aspectRatio != nil && aspectRatio != .ratio4_3)
+            
+            if needsImageProcessing {
+                autoreleasepool {
+                    print("💾 步骤2：需要比例裁剪，进行图像处理")
+                    self?.logOriginalMetadata(processedImageData)
+                    
+                    // 🚀 添加内存保护：检查数据大小
+                    let dataSize = processedImageData.count / (1024 * 1024)
+                    if dataSize > 200 {
+                        print("💾 ⚠️ 数据过大(\(dataSize)MB)，跳过图像重处理以避免崩溃")
+                        finalImageData = self?.addMinimalMetadata(to: processedImageData)
+                    } else {
+                        finalImageData = self?.createImageWithCompleteMetadataOptimized(from: processedImageData, format: format, aspectRatio: aspectRatio)
+                    }
                 }
-                
-                // 保存到相册
-                self?.saveImageDataToPhotoLibrary(enhancedImageData)
+            } else {
+                print("💾 步骤2：跳过图像重处理，直接使用水印后的数据")
+                // 🚀 只添加基本的应用标识到现有数据
+                finalImageData = self?.addMinimalMetadata(to: processedImageData)
+            }
+            
+            // 步骤3：保存到相册
+            autoreleasepool {
+                print("💾 步骤3：保存到相册")
+                if let imageData = finalImageData {
+                    self?.saveImageDataToPhotoLibrary(imageData)
+                } else {
+                    print("❌ 无法创建最终图像数据，使用原始数据")
+                    self?.saveImageDataToPhotoLibrary(processedImageData)
+                }
             }
         }
     }
     
     // 将保存到相册的操作提取为单独的方法，便于内存管理
     private func saveImageDataToPhotoLibrary(_ imageData: Data) {
+        let dataSize = imageData.count / (1024 * 1024)
+        print("💾 开始保存照片到相册 (大小: \(dataSize)MB)")
+        
         PHPhotoLibrary.shared().performChanges({ [weak self] in
             let creationRequest = PHAssetCreationRequest.forAsset()
             
@@ -54,17 +87,205 @@ class PhotoProcessor {
             if let location = self?.locationManager.currentLocation {
                 creationRequest.location = location
                 print("📍 添加GPS位置信息: \(location.coordinate)")
+            } else {
+                print("📍 无GPS位置信息")
             }
             
         }) { success, error in
-            if let error = error {
-                print("❌ 保存照片失败: \(error)")
-            } else if success {
-                print("✅ 照片已成功保存到相册，包含完整元数据")
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ 保存照片失败: \(error)")
+                } else if success {
+                    print("✅ 照片已成功保存到相册，包含完整元数据")
+                    print("🎉 整个拍照流程完成")
+                } else {
+                    print("⚠️ 照片保存状态未知")
+                }
             }
         }
     }
     
+    // 🚀 新增：优化的元数据处理方法 - 减少内存占用
+    private func createImageWithCompleteMetadataOptimized(from imageData: Data, format: PhotoFormat, aspectRatio: AspectRatio? = nil) -> Data? {
+        return autoreleasepool {
+            let originalSize = imageData.count / (1024 * 1024)
+            print("📸 优化的元数据处理开始 (大小: \(originalSize)MB)")
+            
+            // 检查图像大小，如果太大则直接保存原始数据
+            if originalSize > 100 { // 如果超过100MB，直接保存
+                print("📸 图像过大(\(originalSize)MB)，跳过元数据处理直接保存")
+                return imageData
+            }
+            
+            var result: Data?
+            
+            autoreleasepool {
+                guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else {
+                    print("❌ 无法创建图像源")
+                    result = imageData
+                    return
+                }
+                
+                // 获取基本图像信息（不加载图像数据）
+                guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
+                      let width = properties[kCGImagePropertyPixelWidth as String] as? Int,
+                      let height = properties[kCGImagePropertyPixelHeight as String] as? Int else {
+                    print("❌ 无法获取图像属性")
+                    result = imageData
+                    return
+                }
+                
+                let megapixels = (width * height) / 1_000_000
+                print("📸 图像尺寸: \(width)x\(height) (\(megapixels)MP)")
+                
+                // 对于48MP或以上的图像，使用不同的处理策略
+                if megapixels >= 40 {
+                    print("📸 检测到超大图像(\(megapixels)MP)，使用简化处理")
+                    result = processLargeImageOptimized(imageData: imageData, source: source, format: format)
+                } else {
+                    print("📸 标准图像处理")
+                    result = processStandardImage(imageData: imageData, source: source, format: format, aspectRatio: aspectRatio)
+                }
+            }
+            
+            print("📸 优化的元数据处理完成")
+            return result ?? imageData
+        }
+    }
+    
+    // 🚀 新增：大图像优化处理
+    private func processLargeImageOptimized(imageData: Data, source: CGImageSource, format: PhotoFormat) -> Data? {
+        return autoreleasepool {
+            print("📸 大图像优化处理开始")
+            
+            // 对于大图像，只添加基本元数据，不做图像处理
+            var metadata: [String: Any] = [:]
+            if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+                // 保留原有的重要元数据
+                if let exif = properties[kCGImagePropertyExifDictionary as String] {
+                    metadata[kCGImagePropertyExifDictionary as String] = exif
+                }
+                if let tiff = properties[kCGImagePropertyTIFFDictionary as String] {
+                    metadata[kCGImagePropertyTIFFDictionary as String] = tiff
+                }
+                if let gps = properties[kCGImagePropertyGPSDictionary as String] {
+                    metadata[kCGImagePropertyGPSDictionary as String] = gps
+                }
+            }
+            
+            // 添加应用信息到现有元数据
+            var tiffDict = metadata[kCGImagePropertyTIFFDictionary as String] as? [String: Any] ?? [:]
+            if tiffDict[kCGImagePropertyTIFFSoftware as String] == nil {
+                tiffDict[kCGImagePropertyTIFFSoftware as String] = "MCCamera 1.0.0"
+            }
+            metadata[kCGImagePropertyTIFFDictionary as String] = tiffDict
+            
+            // 使用原始图像数据，只更新元数据
+            let mutableData = NSMutableData()
+            let outputType = (format == .heic) ? UTType.heic.identifier as CFString : UTType.jpeg.identifier as CFString
+            
+            guard let destination = CGImageDestinationCreateWithData(mutableData, outputType, 1, nil),
+                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                print("❌ 大图像处理失败")
+                return imageData
+            }
+            
+            // 使用较低的压缩质量减少内存使用
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 0.80,
+                kCGImageDestinationOptimizeColorForSharing: true
+            ]
+            
+            CGImageDestinationSetProperties(destination, options as CFDictionary)
+            CGImageDestinationAddImage(destination, cgImage, metadata as CFDictionary)
+            
+            guard CGImageDestinationFinalize(destination) else {
+                print("❌ 大图像写入失败")
+                return imageData
+            }
+            
+            print("✅ 大图像优化处理完成")
+            return mutableData as Data
+        }
+    }
+    
+    // 🚀 新增：标准图像处理
+    private func processStandardImage(imageData: Data, source: CGImageSource, format: PhotoFormat, aspectRatio: AspectRatio?) -> Data? {
+        return autoreleasepool {
+            print("📸 标准图像处理开始")
+            
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                print("❌ 无法创建CGImage")
+                return imageData
+            }
+            
+            // 处理比例裁剪（如果需要）
+            let finalCGImage: CGImage
+            if let aspectRatio = aspectRatio, aspectRatio != .ratio4_3 {
+                print("🔄 应用比例裁剪: \(aspectRatio.rawValue)")
+                finalCGImage = cropImageToAspectRatio(cgImage, aspectRatio: aspectRatio)
+            } else {
+                finalCGImage = cgImage
+            }
+            
+            // 获取并处理元数据
+            let metadata = processMetadata(from: source)
+            
+            // 创建输出数据
+            let mutableData = NSMutableData()
+            let outputType = (format == .heic) ? UTType.heic.identifier as CFString : UTType.jpeg.identifier as CFString
+            
+            guard let destination = CGImageDestinationCreateWithData(mutableData, outputType, 1, nil) else {
+                print("❌ 无法创建输出目标")
+                return imageData
+            }
+            
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 0.85,
+                kCGImageDestinationOptimizeColorForSharing: true
+            ]
+            
+            CGImageDestinationSetProperties(destination, options as CFDictionary)
+            CGImageDestinationAddImage(destination, finalCGImage, metadata as CFDictionary)
+            
+            guard CGImageDestinationFinalize(destination) else {
+                print("❌ 标准图像写入失败")
+                return imageData
+            }
+            
+            print("✅ 标准图像处理完成")
+            return mutableData as Data
+        }
+    }
+    
+    // 🚀 新增：轻量级元数据处理
+    private func processMetadata(from source: CGImageSource) -> [String: Any] {
+        var metadata: [String: Any] = [:]
+        
+        if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+            // 保留必要的元数据
+            if let exif = properties[kCGImagePropertyExifDictionary as String] {
+                metadata[kCGImagePropertyExifDictionary as String] = exif
+            }
+            if let tiff = properties[kCGImagePropertyTIFFDictionary as String] {
+                metadata[kCGImagePropertyTIFFDictionary as String] = tiff
+            }
+            if let gps = properties[kCGImagePropertyGPSDictionary as String] {
+                metadata[kCGImagePropertyGPSDictionary as String] = gps
+            }
+        }
+        
+        // 添加基本的应用信息
+        var tiffDict = metadata[kCGImagePropertyTIFFDictionary as String] as? [String: Any] ?? [:]
+        tiffDict[kCGImagePropertyTIFFSoftware as String] = "MCCamera 1.0.0"
+        if tiffDict[kCGImagePropertyTIFFMake as String] == nil {
+            tiffDict[kCGImagePropertyTIFFMake as String] = "Apple"
+        }
+        metadata[kCGImagePropertyTIFFDictionary as String] = tiffDict
+        
+        return metadata
+    }
+
     private func createImageWithCompleteMetadata(from imageData: Data, format: PhotoFormat, aspectRatio: AspectRatio? = nil) -> Data? {
         var resultData: Data?
         
@@ -349,6 +570,68 @@ class PhotoProcessor {
         } else {
             print("❌ 图像裁剪失败，返回原图")
             return cgImage
+        }
+    }
+    
+    // 🚀 新增：只添加最小元数据，避免重复图像处理
+    private func addMinimalMetadata(to imageData: Data) -> Data? {
+        return autoreleasepool {
+            print("💾 添加最小元数据，避免重复图像处理")
+            
+            // 创建图像源
+            guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else {
+                print("❌ 无法创建图像源，返回原始数据")
+                return imageData
+            }
+            
+            // 获取现有元数据
+            var metadata: [String: Any] = [:]
+            if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+                // 保留所有现有元数据
+                metadata = properties
+            }
+            
+            // 只添加/更新应用标识到TIFF字典
+            var tiffDict = metadata[kCGImagePropertyTIFFDictionary as String] as? [String: Any] ?? [:]
+            
+            // 如果没有软件标识，添加MCCamera标识
+            if tiffDict[kCGImagePropertyTIFFSoftware as String] == nil {
+                tiffDict[kCGImagePropertyTIFFSoftware as String] = "MCCamera 1.0.0"
+                print("💾 添加MCCamera软件标识")
+            }
+            
+            metadata[kCGImagePropertyTIFFDictionary as String] = tiffDict
+            
+            // 创建输出数据，保持原始格式
+            let mutableData = NSMutableData()
+            
+            // 检测原始格式
+            let imageUTI = CGImageSourceGetType(source)
+            let outputType = imageUTI ?? UTType.heic.identifier as CFString
+            
+            guard let destination = CGImageDestinationCreateWithData(mutableData, outputType, 1, nil),
+                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                print("❌ 无法创建输出目标，返回原始数据")
+                return imageData
+            }
+            
+            // 使用高质量设置，但不压缩
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 0.95,
+                kCGImageDestinationOptimizeColorForSharing: false
+            ]
+            
+            CGImageDestinationSetProperties(destination, options as CFDictionary)
+            CGImageDestinationAddImage(destination, cgImage, metadata as CFDictionary)
+            
+            guard CGImageDestinationFinalize(destination) else {
+                print("❌ 元数据写入失败，返回原始数据")
+                return imageData
+            }
+            
+            let finalSize = mutableData.count / (1024 * 1024)
+            print("✅ 最小元数据添加完成，大小: \(finalSize)MB")
+            return mutableData as Data
         }
     }
     

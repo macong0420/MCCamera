@@ -404,22 +404,34 @@ class CameraService: NSObject, ObservableObject {
         return highResolutionManager.is48MPAvailable(for: currentDevice)
     }
     
-    // 应用水印功能
+    // 🚀 优化后的水印功能：减少内存峰值
     private func applyWatermarkIfNeeded(to imageData: Data, photo: AVCapturePhoto) -> Data {
+        print("🎨 开始应用水印和相框，原始大小: \(imageData.count / 1024 / 1024)MB")
+        
         var processedData = imageData
         
-        // 使用autoreleasepool减少内存占用
+        // 分阶段处理，每个阶段都有独立的内存管理
+        
+        // 第一阶段：应用水印
         autoreleasepool {
-            // 先应用水印
+            print("🎨 第一阶段：应用水印")
             let watermarkProcessor = WatermarkProcessor(currentDevice: currentDevice)
-            let watermarkedData = watermarkProcessor.processWatermark(imageData: imageData, photo: photo, format: currentPhotoFormat, aspectRatio: currentAspectRatio)
-            
-            // 如果设置了相框，应用相框
-            if let frameSettings = currentFrameSettings, frameSettings.selectedFrame != .none {
+            processedData = watermarkProcessor.processWatermark(
+                imageData: processedData, 
+                photo: photo, 
+                format: currentPhotoFormat, 
+                aspectRatio: currentAspectRatio
+            )
+            print("🎨 水印处理完成，大小: \(processedData.count / 1024 / 1024)MB")
+        }
+        
+        // 第二阶段：应用相框（如果需要）
+        if let frameSettings = currentFrameSettings, frameSettings.selectedFrame != .none {
+            autoreleasepool {
+                print("🎨 第二阶段：应用相框")
                 let photoDecorationService = PhotoDecorationService(frameSettings: frameSettings)
-                processedData = photoDecorationService.applyFrameToPhoto(watermarkedData)
-            } else {
-                processedData = watermarkedData
+                processedData = photoDecorationService.applyFrameToPhoto(processedData)
+                print("🎨 相框处理完成，最终大小: \(processedData.count / 1024 / 1024)MB")
             }
         }
         
@@ -434,63 +446,106 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
             return
         }
         
-        guard let imageData = photo.fileDataRepresentation() else {
-            let error = NSError(domain: "CameraService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get image data"])
-            photoCompletionHandler?(.failure(error))
-            return
-        }
-        
-        // 检查刚拍摄的原始图像数据
-        verifyImageData(imageData)
-        
         // 🚀 关键优化：立即返回成功，释放拍摄状态，允许连续拍摄
         print("🚀 拍摄完成，立即释放拍摄状态，水印将在后台处理")
-        photoCompletionHandler?(.success(imageData))
-        photoCompletionHandler = nil
         
-        // 🚀 异步处理水印和保存，不阻塞下次拍摄
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
+        // 使用最小的数据量进行快速返回
+        autoreleasepool {
+            guard let imageData = photo.fileDataRepresentation() else {
+                let error = NSError(domain: "CameraService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get image data"])
+                photoCompletionHandler?(.failure(error))
+                return
+            }
             
-            print("🎨 开始后台水印和相框处理...")
+            // 立即返回成功状态（使用小数据量）
+            photoCompletionHandler?(.success(imageData))
+            photoCompletionHandler = nil
             
-            // 使用autoreleasepool减少内存占用
+            // 🚀 在独立的后台线程中处理，避免内存峰值重叠
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                self?.processPhotoInBackground(photo: photo, originalData: imageData)
+            }
+        }
+    }
+    
+    // 🚀 新增：独立的后台处理方法，优化内存使用
+    private func processPhotoInBackground(photo: AVCapturePhoto, originalData: Data) {
+        // 使用最大的autoreleasepool包围整个处理过程
+        autoreleasepool {
+            print("🎨 开始后台处理 - 当前内存压力较低的线程")
+            let dataSize = originalData.count / (1024 * 1024)
+            print("📊 原始数据大小: \(dataSize)MB")
+            
+            // 先验证图像（减少内存占用版本）
+            print("📊 步骤1: 验证图像")
+            self.verifyImageDataLightweight(originalData)
+            
+            // 分步处理，每一步都用autoreleasepool
+            let finalImageData: Data
+            
+            // 第一步：应用水印和相框
+            finalImageData = autoreleasepool {
+                print("📊 步骤2: 应用水印和相框")
+                let processedData = self.applyWatermarkIfNeeded(to: originalData, photo: photo)
+                let processedSize = processedData.count / (1024 * 1024)
+                print("📊 水印处理完成，大小: \(processedSize)MB")
+                return processedData
+            }
+            
+            // 第二步：保存到相册
             autoreleasepool {
-                // 应用水印和相框功能（在后台线程）
-                let finalImageData = self.applyWatermarkIfNeeded(to: imageData, photo: photo)
-                
-                print("💾 开始后台保存到相册...")
-                
-                // 保存到相册（在后台线程）
-                self.photoProcessor.savePhotoToLibrary(finalImageData, format: self.currentPhotoFormat, aspectRatio: self.currentAspectRatio)
+                print("📊 步骤3: 保存到相册")
+                self.photoProcessor.savePhotoToLibrary(
+                    finalImageData,
+                    format: self.currentPhotoFormat,
+                    aspectRatio: self.currentAspectRatio
+                )
+                print("✅ 保存完成")
             }
             
             print("✅ 后台处理完成：水印 + 相框 + 保存")
+            
+            // 🚀 通知主线程处理完成
+            DispatchQueue.main.async { [weak self] in
+                // 通知ViewModel处理完成（如果需要）
+                NotificationCenter.default.post(name: NSNotification.Name("BackgroundProcessingCompleted"), object: nil)
+            }
+        }
+    }
+    
+    // 🚀 新增：轻量级图像验证，减少内存占用
+    private func verifyImageDataLightweight(_ imageData: Data) {
+        autoreleasepool {
+            // 只获取基本的图像属性，不创建完整的图像对象
+            guard let source = CGImageSourceCreateWithData(imageData as CFData, nil) else { 
+                print("❌ 无法创建图像源")
+                return 
+            }
+            
+            // 只获取图像属性，不加载图像数据
+            guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] else {
+                print("❌ 无法获取图像属性")
+                return
+            }
+            
+            if let pixelWidth = properties[kCGImagePropertyPixelWidth as String] as? Int,
+               let pixelHeight = properties[kCGImagePropertyPixelHeight as String] as? Int {
+                let megapixels = (pixelWidth * pixelHeight) / 1_000_000
+                let dataSize = imageData.count / (1024 * 1024) // MB
+                
+                print("🔍 图像信息: \(pixelWidth)x\(pixelHeight) (\(megapixels)MP), 大小: \(dataSize)MB")
+                
+                if currentPhotoResolution == .resolution48MP && megapixels < 40 {
+                    print("❌ 警告：预期48MP但实际拍摄\(megapixels)MP")
+                } else if currentPhotoResolution == .resolution48MP && megapixels >= 40 {
+                    print("✅ 成功：48MP模式")
+                }
+            }
         }
     }
     
     private func verifyImageData(_ imageData: Data) {
-        // 🔍 关键调试：检查刚拍摄的原始图像数据
-        autoreleasepool {
-            if let source = CGImageSourceCreateWithData(imageData as CFData, nil) {
-                if let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
-                    if let pixelWidth = properties[kCGImagePropertyPixelWidth as String] as? Int,
-                       let pixelHeight = properties[kCGImagePropertyPixelHeight as String] as? Int {
-                        let megapixels = (pixelWidth * pixelHeight) / 1_000_000
-                        print("🔍 刚拍摄的原始图像:")
-                        print("  - 尺寸: \(pixelWidth) x \(pixelHeight)")
-                        print("  - 像素数: \(megapixels)MP")
-                        print("  - 预期48MP: \(currentPhotoResolution == .resolution48MP)")
-                        print("  - 实际是48MP: \(megapixels >= 40)")
-                        
-                        if currentPhotoResolution == .resolution48MP && megapixels < 40 {
-                            print("❌ 警告：预期48MP但实际拍摄\(megapixels)MP")
-                        } else if currentPhotoResolution == .resolution48MP && megapixels >= 40 {
-                            print("✅ 成功：48MP模式拍摄了\(megapixels)MP图像")
-                        }
-                    }
-                }
-            }
-        }
+        // 保留原方法用于兼容，但标记为已弃用
+        verifyImageDataLightweight(imageData)
     }
 }
