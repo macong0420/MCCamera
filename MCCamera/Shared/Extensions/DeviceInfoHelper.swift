@@ -2,6 +2,10 @@ import UIKit
 import AVFoundation
 
 class DeviceInfoHelper {
+    static func getDeviceModel() -> String {
+        return getDetailedDeviceModel()
+    }
+    
     static func getDetailedDeviceModel() -> String {
         var systemInfo = utsname()
         uname(&systemInfo)

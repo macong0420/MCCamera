@@ -4,7 +4,7 @@ import CoreLocation
 
 class PhotoDecorationRenderer {
     
-    // 渲染装饰到照片上
+    // 渲染装饰到照片上（兼容原有接口）
     func renderDecoration(
         on image: UIImage,
         frameType: FrameType,
@@ -17,6 +17,39 @@ class PhotoDecorationRenderer {
         selectedLogo: String?,
         showSignature: Bool,
         metadata: [String: Any]
+    ) -> UIImage {
+        return renderDecoration(
+            on: image,
+            frameType: frameType,
+            customText: customText,
+            showDate: showDate,
+            showLocation: showLocation,
+            showExif: showExif,
+            showExifParams: showExifParams,
+            showExifDate: showExifDate,
+            selectedLogo: selectedLogo,
+            showSignature: showSignature,
+            metadata: metadata,
+            watermarkInfo: nil,
+            aspectRatio: nil
+        )
+    }
+    
+    // 渲染装饰到照片上（支持水印信息集成）
+    func renderDecoration(
+        on image: UIImage,
+        frameType: FrameType,
+        customText: String,
+        showDate: Bool,
+        showLocation: Bool,
+        showExif: Bool,
+        showExifParams: Bool,
+        showExifDate: Bool,
+        selectedLogo: String?,
+        showSignature: Bool,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        aspectRatio: AspectRatio?
     ) -> UIImage {
         // 优化：使用更严格的内存管理策略
         var finalImage: UIImage?
@@ -71,7 +104,8 @@ class PhotoDecorationRenderer {
                     frameSize: frameSize,
                     customText: customText,
                     showDate: showDate,
-                    metadata: metadata
+                    metadata: metadata,
+                    watermarkInfo: watermarkInfo
                 )
                 
                 // 🔥 修复：直接在宝丽来分支中获取图像
@@ -97,7 +131,8 @@ class PhotoDecorationRenderer {
                         showExifDate: showExifDate,
                         selectedLogo: selectedLogo,
                         showSignature: showSignature,
-                        metadata: metadata
+                        metadata: metadata,
+                        watermarkInfo: watermarkInfo
                     )
                     
                 case .centerWatermark:
@@ -168,7 +203,8 @@ class PhotoDecorationRenderer {
         showExifDate: Bool,
         selectedLogo: String?,
         showSignature: Bool,
-        metadata: [String: Any]
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?
     ) {
         // 底部黑色条
         let barHeight = imageSize.height * 0.08
@@ -180,16 +216,57 @@ class PhotoDecorationRenderer {
         UIColor.white.setFill()
         UIColor.white.setStroke()
         
-        // 绘制自定义文字
-        if !customText.isEmpty {
-            autoreleasepool {
-                let textFont = UIFont.systemFont(ofSize: barHeight * 0.4, weight: .medium)
+        // 绘制自定义文字和水印信息
+        autoreleasepool {
+            var displayText = customText
+            
+            // 如果有水印信息，将其集成到相框文字中
+            if let watermark = watermarkInfo {
+                let watermarkSettings = WatermarkSettings.load()
+                var watermarkComponents: [String] = []
+                
+                // 根据设置添加水印组件
+                if watermarkSettings.showDeviceModel {
+                    watermarkComponents.append(DeviceInfoHelper.getDeviceModel())
+                }
+                
+                if watermarkSettings.showFocalLength {
+                    watermarkComponents.append("\(Int(watermark.focalLength))mm")
+                }
+                
+                if watermarkSettings.showShutterSpeed {
+                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
+                    watermarkComponents.append(shutterDisplay)
+                }
+                
+                if watermarkSettings.showISO {
+                    watermarkComponents.append("ISO\(Int(watermark.iso))")
+                }
+                
+                if watermarkSettings.showDate {
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy.MM.dd"
+                    watermarkComponents.append(dateFormatter.string(from: Date()))
+                }
+                
+                let watermarkText = watermarkComponents.joined(separator: " | ")
+                
+                // 如果没有自定义文字，使用水印文字；否则组合显示
+                if displayText.isEmpty {
+                    displayText = watermarkText
+                } else if !watermarkText.isEmpty {
+                    displayText = "\(displayText) • \(watermarkText)"
+                }
+            }
+            
+            if !displayText.isEmpty {
+                let textFont = UIFont.systemFont(ofSize: barHeight * 0.35, weight: .medium)
                 let textAttributes: [NSAttributedString.Key: Any] = [
                     .font: textFont,
                     .foregroundColor: UIColor.white
                 ]
                 
-                let textSize = customText.size(withAttributes: textAttributes)
+                let textSize = displayText.size(withAttributes: textAttributes)
                 let textRect = CGRect(
                     x: imageSize.width / 2 - textSize.width / 2,
                     y: imageSize.height - barHeight / 2 - textSize.height / 2,
@@ -197,7 +274,7 @@ class PhotoDecorationRenderer {
                     height: textSize.height
                 )
                 
-                customText.draw(in: textRect, withAttributes: textAttributes)
+                displayText.draw(in: textRect, withAttributes: textAttributes)
             }
         }
         
@@ -419,13 +496,24 @@ class PhotoDecorationRenderer {
         }
     }
     
+    // 格式化快门速度显示
+    private func formatShutterSpeed(_ shutterSpeed: Double) -> String {
+        if shutterSpeed >= 1.0 {
+            return String(format: "%.1f\"", shutterSpeed)
+        } else {
+            let fraction = Int(1.0 / shutterSpeed)
+            return "1/\(fraction)"
+        }
+    }
+    
     // 🐛 修复：新的宝丽来相框渲染方法，接受原始图像参数
     private func renderPolaroidFrame(
         image: UIImage,
         frameSize: CGSize,
         customText: String,
         showDate: Bool,
-        metadata: [String: Any]
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?
     ) {
         autoreleasepool {
             // 计算宝丽来相框的尺寸和位置
@@ -454,15 +542,51 @@ class PhotoDecorationRenderer {
             shadowPath.lineWidth = 2
             shadowPath.stroke()
             
-            // 绘制自定义文字
-            if !customText.isEmpty {
-                let textFont = UIFont(name: "Marker Felt", size: bottomBorderHeight * 0.4) ?? UIFont.systemFont(ofSize: bottomBorderHeight * 0.4, weight: .medium)
+            // 绘制自定义文字和水印信息
+            var displayText = customText
+            
+            // 如果有水印信息，将其集成到相框文字中
+            if let watermark = watermarkInfo {
+                let watermarkSettings = WatermarkSettings.load()
+                var watermarkComponents: [String] = []
+                
+                // 根据设置添加水印组件
+                if watermarkSettings.showDeviceModel {
+                    watermarkComponents.append(DeviceInfoHelper.getDeviceModel())
+                }
+                
+                if watermarkSettings.showFocalLength {
+                    watermarkComponents.append("\(Int(watermark.focalLength))mm")
+                }
+                
+                if watermarkSettings.showShutterSpeed {
+                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
+                    watermarkComponents.append(shutterDisplay)
+                }
+                
+                if watermarkSettings.showISO {
+                    watermarkComponents.append("ISO\(Int(watermark.iso))")
+                }
+                
+                let watermarkText = watermarkComponents.joined(separator: " | ")
+                
+                // 如果没有自定义文字，使用水印文字；否则组合显示
+                if displayText.isEmpty {
+                    displayText = watermarkText
+                } else if !watermarkText.isEmpty {
+                    displayText = "\(displayText)\n\(watermarkText)"
+                }
+            }
+            
+            if !displayText.isEmpty {
+                // 使用系统字体替代Marker Felt
+                let textFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.3, weight: .medium)
                 let textAttributes: [NSAttributedString.Key: Any] = [
                     .font: textFont,
                     .foregroundColor: UIColor.black
                 ]
                 
-                let textSize = customText.size(withAttributes: textAttributes)
+                let textSize = displayText.size(withAttributes: textAttributes)
                 let textRect = CGRect(
                     x: frameSize.width / 2 - textSize.width / 2,
                     y: frameSize.height - bottomBorderHeight / 2 - textSize.height / 2,
@@ -470,7 +594,7 @@ class PhotoDecorationRenderer {
                     height: textSize.height
                 )
                 
-                customText.draw(in: textRect, withAttributes: textAttributes)
+                displayText.draw(in: textRect, withAttributes: textAttributes)
             }
             
             // 绘制日期
@@ -479,7 +603,8 @@ class PhotoDecorationRenderer {
                 dateFormatter.dateFormat = "yyyy.MM.dd"
                 let dateString = dateFormatter.string(from: Date())
                 
-                let dateFont = UIFont(name: "Marker Felt", size: bottomBorderHeight * 0.25) ?? UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
+                // 使用系统字体替代Marker Felt
+                let dateFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
                 let dateAttributes: [NSAttributedString.Key: Any] = [
                     .font: dateFont,
                     .foregroundColor: UIColor.black.withAlphaComponent(0.6)

@@ -404,38 +404,95 @@ class CameraService: NSObject, ObservableObject {
         return highResolutionManager.is48MPAvailable(for: currentDevice)
     }
     
-    // 🚀 优化后的水印功能：减少内存峰值
+    // 🚀 优化后的水印和相框功能：智能处理逻辑
     private func applyWatermarkIfNeeded(to imageData: Data, photo: AVCapturePhoto) -> Data {
         print("🎨 开始应用水印和相框，原始大小: \(imageData.count / 1024 / 1024)MB")
         
         var processedData = imageData
+        let hasFrame = currentFrameSettings?.selectedFrame != .none
+        let watermarkSettings = WatermarkSettings.load()
+        let hasWatermark = watermarkSettings.isEnabled
         
-        // 分阶段处理，每个阶段都有独立的内存管理
+        print("🎨 处理状态: 相框=\(hasFrame), 水印=\(hasWatermark)")
         
-        // 第一阶段：应用水印
-        autoreleasepool {
-            print("🎨 第一阶段：应用水印")
-            let watermarkProcessor = WatermarkProcessor(currentDevice: currentDevice)
-            processedData = watermarkProcessor.processWatermark(
-                imageData: processedData, 
-                photo: photo, 
-                format: currentPhotoFormat, 
-                aspectRatio: currentAspectRatio
-            )
-            print("🎨 水印处理完成，大小: \(processedData.count / 1024 / 1024)MB")
-        }
-        
-        // 第二阶段：应用相框（如果需要）
-        if let frameSettings = currentFrameSettings, frameSettings.selectedFrame != .none {
+        if hasFrame {
+            // 有相框的情况：将水印信息集成到相框中处理
+            if let frameSettings = currentFrameSettings {
+                autoreleasepool {
+                    print("🎨 应用相框并集成水印信息")
+                    let photoDecorationService = PhotoDecorationService(frameSettings: frameSettings)
+                    
+                    // 提取相机设置信息供相框使用
+                    let captureSettings = extractCaptureSettings(from: photo)
+                    
+                    processedData = photoDecorationService.applyFrameToPhoto(
+                        processedData, 
+                        withWatermarkInfo: hasWatermark ? captureSettings : nil,
+                        aspectRatio: currentAspectRatio
+                    )
+                    print("🎨 相框+水印处理完成，大小: \(processedData.count / 1024 / 1024)MB")
+                }
+            }
+        } else if hasWatermark {
+            // 没有相框但有水印：保持原有逻辑，将水印添加到照片上
             autoreleasepool {
-                print("🎨 第二阶段：应用相框")
-                let photoDecorationService = PhotoDecorationService(frameSettings: frameSettings)
-                processedData = photoDecorationService.applyFrameToPhoto(processedData)
-                print("🎨 相框处理完成，最终大小: \(processedData.count / 1024 / 1024)MB")
+                print("🎨 应用水印到照片")
+                let watermarkProcessor = WatermarkProcessor(currentDevice: currentDevice)
+                processedData = watermarkProcessor.processWatermark(
+                    imageData: processedData, 
+                    photo: photo, 
+                    format: currentPhotoFormat, 
+                    aspectRatio: currentAspectRatio
+                )
+                print("🎨 水印处理完成，大小: \(processedData.count / 1024 / 1024)MB")
             }
         }
         
         return processedData
+    }
+    
+    // 提取拍摄设置信息的辅助方法
+    private func extractCaptureSettings(from photo: AVCapturePhoto) -> CameraCaptureSettings {
+        var focalLength: Float = 24.0
+        var shutterSpeed: Double = 1.0/60.0
+        var iso: Float = 100.0
+        
+        // 尝试从相机设备获取焦距
+        if let device = currentDevice {
+            switch device.deviceType {
+            case .builtInUltraWideCamera:
+                focalLength = 13.0
+            case .builtInWideAngleCamera:
+                focalLength = 26.0
+            case .builtInTelephotoCamera:
+                focalLength = 77.0
+            default:
+                focalLength = 26.0
+            }
+            
+            // 从设备获取当前ISO和快门速度
+            iso = device.iso
+            shutterSpeed = CMTimeGetSeconds(device.exposureDuration)
+        }
+        
+        // 尝试从照片元数据获取更准确的信息
+        if let metadata = photo.metadata as? [String: Any] {
+            if let exifDict = metadata["{Exif}"] as? [String: Any] {
+                if let focalLengthValue = exifDict["FocalLength"] as? Float {
+                    focalLength = focalLengthValue
+                }
+                if let isoValue = exifDict["ISOSpeedRatings"] as? [Float], let firstISO = isoValue.first {
+                    iso = firstISO
+                } else if let isoValue = exifDict["ISOSpeedRatings"] as? Float {
+                    iso = isoValue
+                }
+                if let exposureTimeValue = exifDict["ExposureTime"] as? Double {
+                    shutterSpeed = exposureTimeValue
+                }
+            }
+        }
+        
+        return CameraCaptureSettings(focalLength: focalLength, shutterSpeed: shutterSpeed, iso: iso)
     }
 }
 

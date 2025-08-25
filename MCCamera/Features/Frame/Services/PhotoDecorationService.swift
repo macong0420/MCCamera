@@ -13,8 +13,13 @@ class PhotoDecorationService {
         self.layoutEngine = InfoLayoutEngine()
     }
     
-    // 应用相框到照片
+    // 应用相框到照片（兼容原有接口）
     func applyFrameToPhoto(_ imageData: Data) -> Data {
+        return applyFrameToPhoto(imageData, withWatermarkInfo: nil, aspectRatio: nil)
+    }
+    
+    // 应用相框到照片并可选择集成水印信息
+    func applyFrameToPhoto(_ imageData: Data, withWatermarkInfo watermarkInfo: CameraCaptureSettings?, aspectRatio: AspectRatio?) -> Data {
         // 如果没有选择相框，直接返回原图
         guard frameSettings.selectedFrame != .none else {
             return imageData
@@ -45,7 +50,9 @@ class PhotoDecorationService {
                 showExifDate: frameSettings.showExifDate,
                 selectedLogo: frameSettings.selectedLogo,
                 showSignature: frameSettings.showSignature,
-                metadata: metadata
+                metadata: metadata,
+                watermarkInfo: watermarkInfo,
+                aspectRatio: aspectRatio
             )
             
             // 转换回Data - 使用较低的压缩质量以减少内存使用
