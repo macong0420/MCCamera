@@ -52,7 +52,8 @@ class PhotoDecorationService {
                 showSignature: frameSettings.showSignature,
                 metadata: metadata,
                 watermarkInfo: watermarkInfo,
-                aspectRatio: aspectRatio
+                aspectRatio: aspectRatio,
+                frameSettings: frameSettings
             )
             
             // 转换回Data - 使用较低的压缩质量以减少内存使用

@@ -49,7 +49,8 @@ class PhotoDecorationRenderer {
         showSignature: Bool,
         metadata: [String: Any],
         watermarkInfo: CameraCaptureSettings?,
-        aspectRatio: AspectRatio?
+        aspectRatio: AspectRatio?,
+        frameSettings: FrameSettings? = nil
     ) -> UIImage {
         // 优化：使用更严格的内存管理策略
         var finalImage: UIImage?
@@ -106,7 +107,8 @@ class PhotoDecorationRenderer {
                     showDate: showDate,
                     selectedLogo: selectedLogo,
                     metadata: metadata,
-                    watermarkInfo: watermarkInfo
+                    watermarkInfo: watermarkInfo,
+                    frameSettings: frameSettings
                 )
                 
                 // 🔥 修复：直接在宝丽来分支中获取图像
@@ -133,7 +135,8 @@ class PhotoDecorationRenderer {
                         selectedLogo: selectedLogo,
                         showSignature: showSignature,
                         metadata: metadata,
-                        watermarkInfo: watermarkInfo
+                        watermarkInfo: watermarkInfo,
+                        frameSettings: frameSettings
                     )
                     
                 case .centerWatermark:
@@ -141,7 +144,9 @@ class PhotoDecorationRenderer {
                         imageSize: renderImage.size,
                         customText: customText,
                         selectedLogo: selectedLogo,
-                        metadata: metadata
+                        metadata: metadata,
+                        watermarkInfo: watermarkInfo,
+                        frameSettings: frameSettings
                     )
                     
                 case .magazineCover:
@@ -150,7 +155,9 @@ class PhotoDecorationRenderer {
                         customText: customText,
                         showDate: showDate,
                         selectedLogo: selectedLogo,
-                        metadata: metadata
+                        metadata: metadata,
+                        watermarkInfo: watermarkInfo,
+                        frameSettings: frameSettings
                     )
                     
                 case .none:
@@ -170,8 +177,8 @@ class PhotoDecorationRenderer {
         return finalImage ?? image
     }
     
-    // 优化：预加载和缓存Logo图像
-    private func getLogoImage(_ logoName: String, maxSize: CGFloat) -> UIImage? {
+    // 优化：预加载和缓存Logo图像，保持宽高比
+    private func getLogoImage(_ logoName: String, maxHeight: CGFloat) -> UIImage? {
         print("🏷️ 尝试加载Logo: \(logoName)")
         guard let logoImage = UIImage(named: logoName) else { 
             print("❌ 无法加载Logo图像: \(logoName)")
@@ -179,11 +186,11 @@ class PhotoDecorationRenderer {
         }
         print("✅ 成功加载Logo: \(logoName), 尺寸: \(logoImage.size)")
         
-        // 如果Logo图像过大，缩小它
-        if max(logoImage.size.width, logoImage.size.height) > maxSize {
+        // 如果Logo图像高度过大，等比例缩小（保持宽高比）
+        if logoImage.size.height > maxHeight {
             var result: UIImage?
             autoreleasepool {
-                let scale = maxSize / max(logoImage.size.width, logoImage.size.height)
+                let scale = maxHeight / logoImage.size.height
                 let newSize = CGSize(width: logoImage.size.width * scale, height: logoImage.size.height * scale)
                 
                 UIGraphicsBeginImageContextWithOptions(newSize, false, 0)
@@ -210,10 +217,21 @@ class PhotoDecorationRenderer {
         selectedLogo: String?,
         showSignature: Bool,
         metadata: [String: Any],
-        watermarkInfo: CameraCaptureSettings?
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
     ) {
-        // 底部黑色条
-        let barHeight = imageSize.height * 0.08
+        // 底部黑色条 - 动态调整高度以适应内容
+        let hasMainText = !customText.isEmpty
+        let hasWatermarkInfo = watermarkInfo != nil
+        
+        // 根据内容动态调整高度
+        var barHeight = imageSize.height * 0.08
+        if hasMainText && hasWatermarkInfo {
+            barHeight = imageSize.height * 0.12 // 如果有主文字和水印信息，增加高度
+        } else if hasMainText || hasWatermarkInfo {
+            barHeight = imageSize.height * 0.10 // 只有其中一种，稍微增加
+        }
+        
         let barRect = CGRect(x: 0, y: imageSize.height - barHeight, width: imageSize.width, height: barHeight)
         UIColor.black.setFill()
         UIRectFill(barRect)
@@ -222,104 +240,81 @@ class PhotoDecorationRenderer {
         UIColor.white.setFill()
         UIColor.white.setStroke()
         
-        // 绘制自定义文字和水印信息
-        autoreleasepool {
-            var displayText = customText
-            
-            // 如果有水印信息，将其集成到相框文字中
-            if let watermark = watermarkInfo {
-                let watermarkSettings = WatermarkSettings.load()
-                var watermarkComponents: [String] = []
-                
-                // 根据设置添加水印组件
-                if watermarkSettings.showDeviceModel {
-                    watermarkComponents.append(DeviceInfoHelper.getDeviceModel())
-                }
-                
-                if watermarkSettings.showFocalLength {
-                    watermarkComponents.append("\(Int(watermark.focalLength))mm")
-                }
-                
-                if watermarkSettings.showShutterSpeed {
-                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
-                    watermarkComponents.append(shutterDisplay)
-                }
-                
-                if watermarkSettings.showISO {
-                    watermarkComponents.append("ISO\(Int(watermark.iso))")
-                }
-                
-                if watermarkSettings.showDate {
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "yyyy.MM.dd"
-                    watermarkComponents.append(dateFormatter.string(from: Date()))
-                }
-                
-                let watermarkText = watermarkComponents.joined(separator: " | ")
-                
-                // 如果没有自定义文字，使用水印文字；否则组合显示
-                if displayText.isEmpty {
-                    displayText = watermarkText
-                } else if !watermarkText.isEmpty {
-                    displayText = "\(displayText) • \(watermarkText)"
-                }
-            }
-            
-            if !displayText.isEmpty {
-                let textFont = UIFont.systemFont(ofSize: barHeight * 0.35, weight: .medium)
-                let textAttributes: [NSAttributedString.Key: Any] = [
-                    .font: textFont,
-                    .foregroundColor: UIColor.white
-                ]
-                
-                let textSize = displayText.size(withAttributes: textAttributes)
-                let textRect = CGRect(
-                    x: imageSize.width / 2 - textSize.width / 2,
-                    y: imageSize.height - barHeight / 2 - textSize.height / 2,
-                    width: textSize.width,
-                    height: textSize.height
-                )
-                
-                displayText.draw(in: textRect, withAttributes: textAttributes)
-            }
-        }
+        // 收集需要显示的信息组件
+        var infoComponents: [String] = []
+        var secondLineComponents: [String] = []
         
-        // 绘制日期
-        if showDate {
-            autoreleasepool {
+        // 如果有水印信息，根据相框设置决定显示哪些信息
+        if let watermark = watermarkInfo {
+            // 设备信息（第一行）
+            if frameSettings?.showDeviceModel == true {
+                infoComponents.append(DeviceInfoHelper.getDeviceModel())
+            }
+            
+            if frameSettings?.showFocalLength == true {
+                infoComponents.append("\(Int(watermark.focalLength))mm")
+            }
+            
+            // 拍摄参数（第二行）
+            if frameSettings?.showShutterSpeed == true {
+                let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
+                secondLineComponents.append(shutterDisplay)
+            }
+            
+            if frameSettings?.showISO == true {
+                secondLineComponents.append("ISO\(Int(watermark.iso))")
+            }
+            
+            // 如果启用了光圈显示，尝试从元数据中获取
+            if frameSettings?.showAperture == true {
+                if let exif = metadata["exif"] as? [String: Any],
+                   let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
+                    secondLineComponents.append("f/\(aperture)")
+                }
+            }
+            
+            // 日期信息
+            if frameSettings?.showDate == true {
                 let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                let dateString = dateFormatter.string(from: Date())
-                
-                let dateFont = UIFont.systemFont(ofSize: barHeight * 0.3, weight: .regular)
-                let dateAttributes: [NSAttributedString.Key: Any] = [
-                    .font: dateFont,
-                    .foregroundColor: UIColor.white
-                ]
-                
-                let dateSize = dateString.size(withAttributes: dateAttributes)
-                let dateRect = CGRect(
-                    x: imageSize.width - dateSize.width - 20,
-                    y: imageSize.height - barHeight / 2 - dateSize.height / 2,
-                    width: dateSize.width,
-                    height: dateSize.height
-                )
-                
-                dateString.draw(in: dateRect, withAttributes: dateAttributes)
+                dateFormatter.dateFormat = "yyyy.MM.dd"
+                secondLineComponents.append(dateFormatter.string(from: Date()))
             }
         }
         
-        // 绘制Logo
+        // 统一布局：Logo左侧，文字右对齐
+        let logoWidth: CGFloat = selectedLogo != nil ? 80 : 0 // 为Logo预留固定宽度
+        let firstLine = infoComponents.joined(separator: " | ")
+        let secondLine = secondLineComponents.joined(separator: " | ")
+        
+        // 统一使用右对齐布局
+        renderTextWithUnifiedLayout(
+            imageSize: imageSize,
+            barHeight: barHeight,
+            logoWidth: logoWidth,
+            customText: customText,
+            firstLine: firstLine,
+            secondLine: secondLine,
+            frameSettings: frameSettings,
+            watermarkInfo: watermarkInfo,
+            metadata: metadata
+        )
+        
+        // 绘制Logo - 统一左侧布局
         if let logoName = selectedLogo {
             print("🏷️ 底部文字相框 - 开始绘制Logo: \(logoName)")
             autoreleasepool {
-                let logoSize = barHeight * 0.7
-                if let logoImage = getLogoImage(logoName, maxSize: logoSize * 2) {
+                let logoMaxHeight = barHeight * 0.4
+                if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
+                    let logoWidth = logoImage.size.width
+                    let logoHeight = logoImage.size.height
+                    
+                    print("🏷️ Logo尺寸: \(logoImage.size)")
+                    
                     let logoRect = CGRect(
                         x: 20,
-                        y: imageSize.height - barHeight / 2 - logoSize / 2,
-                        width: logoSize,
-                        height: logoSize
+                        y: imageSize.height - barHeight / 2 - logoHeight / 2,
+                        width: logoWidth,
+                        height: logoHeight
                     )
                     
                     print("🏷️ 底部文字相框 - Logo绘制位置: \(logoRect)")
@@ -328,8 +323,6 @@ class PhotoDecorationRenderer {
                     print("❌ 底部文字相框 - getLogoImage返回nil")
                 }
             }
-        } else {
-            print("🏷️ 底部文字相框 - selectedLogo为nil")
         }
         
         // 绘制EXIF信息
@@ -378,18 +371,22 @@ class PhotoDecorationRenderer {
         imageSize: CGSize,
         customText: String,
         selectedLogo: String?,
-        metadata: [String: Any]
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
     ) {
-        // 绘制半透明Logo
+        // 绘制半透明Logo - 保持宽高比
         if let logoName = selectedLogo {
             autoreleasepool {
-                let logoSize = min(imageSize.width, imageSize.height) * 0.2
-                if let logoImage = getLogoImage(logoName, maxSize: logoSize * 1.5) {
+                let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.2
+                if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
+                    let logoWidth = logoImage.size.width
+                    let logoHeight = logoImage.size.height
                     let logoRect = CGRect(
-                        x: imageSize.width / 2 - logoSize / 2,
-                        y: imageSize.height / 2 - logoSize / 2,
-                        width: logoSize,
-                        height: logoSize
+                        x: imageSize.width / 2 - logoWidth / 2,
+                        y: imageSize.height / 2 - logoHeight / 2,
+                        width: logoWidth,
+                        height: logoHeight
                     )
                     
                     // 设置透明度
@@ -433,7 +430,9 @@ class PhotoDecorationRenderer {
         customText: String,
         showDate: Bool,
         selectedLogo: String?,
-        metadata: [String: Any]
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
     ) {
         autoreleasepool {
             // 顶部黑色条
@@ -448,11 +447,12 @@ class PhotoDecorationRenderer {
             UIColor.black.setFill()
             UIRectFill(bottomBarRect)
             
-            // 绘制Logo
+            // 绘制Logo - 保持宽高比
             if let logoName = selectedLogo {
-                let logoHeight = topBarHeight * 0.6
-                if let logoImage = getLogoImage(logoName, maxSize: logoHeight * 2) {
-                    let logoWidth = logoHeight * (logoImage.size.width / logoImage.size.height)
+                let logoMaxHeight = topBarHeight * 0.6
+                if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
+                    let logoWidth = logoImage.size.width
+                    let logoHeight = logoImage.size.height
                     let logoRect = CGRect(
                         x: 20,
                         y: topBarHeight / 2 - logoHeight / 2,
@@ -464,12 +464,12 @@ class PhotoDecorationRenderer {
                 }
             }
             
-            // 绘制自定义文字（标题）
+            // 绘制自定义文字（标题） - 去掉加粗
             if !customText.isEmpty {
-                let textFont = UIFont.systemFont(ofSize: topBarHeight * 0.4, weight: .bold)
+                let textFont = UIFont.systemFont(ofSize: topBarHeight * 0.4, weight: .regular) // 改为regular
                 let textAttributes: [NSAttributedString.Key: Any] = [
                     .font: textFont,
-                    .foregroundColor: UIColor.white
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.8)
                 ]
                 
                 let textSize = customText.size(withAttributes: textAttributes)
@@ -492,7 +492,7 @@ class PhotoDecorationRenderer {
                 let dateFont = UIFont.systemFont(ofSize: bottomBarHeight * 0.6, weight: .medium)
                 let dateAttributes: [NSAttributedString.Key: Any] = [
                     .font: dateFont,
-                    .foregroundColor: UIColor.white
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.8) // 调整透明度
                 ]
                 
                 let dateSize = dateString.size(withAttributes: dateAttributes)
@@ -518,6 +518,78 @@ class PhotoDecorationRenderer {
         }
     }
     
+    // 统一布局：Logo左侧，文字右对齐
+    private func renderTextWithUnifiedLayout(
+        imageSize: CGSize,
+        barHeight: CGFloat,
+        logoWidth: CGFloat,
+        customText: String,
+        firstLine: String,
+        secondLine: String,
+        frameSettings: FrameSettings?,
+        watermarkInfo: CameraCaptureSettings?,
+        metadata: [String: Any]
+    ) {
+        let rightMargin: CGFloat = 20
+        
+        // 绘制主文字 - 右对齐
+        if !customText.isEmpty {
+            let mainFont = UIFont.systemFont(ofSize: barHeight * 0.4, weight: .regular)
+            let mainAttributes: [NSAttributedString.Key: Any] = [
+                .font: mainFont,
+                .foregroundColor: UIColor.white.withAlphaComponent(0.7)
+            ]
+            
+            let mainSize = customText.size(withAttributes: mainAttributes)
+            let mainRect = CGRect(
+                x: imageSize.width - rightMargin - mainSize.width,
+                y: imageSize.height - barHeight + barHeight * 0.15,
+                width: mainSize.width,
+                height: mainSize.height
+            )
+            
+            customText.draw(in: mainRect, withAttributes: mainAttributes)
+        }
+        
+        // 绘制第一行信息 - 右对齐
+        if !firstLine.isEmpty {
+            let infoFont = UIFont.systemFont(ofSize: barHeight * 0.28, weight: .regular)
+            let infoAttributes: [NSAttributedString.Key: Any] = [
+                .font: infoFont,
+                .foregroundColor: UIColor.white.withAlphaComponent(0.6)
+            ]
+            
+            let infoSize = firstLine.size(withAttributes: infoAttributes)
+            let infoRect = CGRect(
+                x: imageSize.width - rightMargin - infoSize.width,
+                y: imageSize.height - 8 - infoSize.height - (secondLine.isEmpty ? 0 : barHeight * 0.25 + 4),
+                width: infoSize.width,
+                height: infoSize.height
+            )
+            
+            firstLine.draw(in: infoRect, withAttributes: infoAttributes)
+        }
+        
+        // 绘制第二行信息 - 右对齐
+        if !secondLine.isEmpty {
+            let paramFont = UIFont.systemFont(ofSize: barHeight * 0.25, weight: .light)
+            let paramAttributes: [NSAttributedString.Key: Any] = [
+                .font: paramFont,
+                .foregroundColor: UIColor.white.withAlphaComponent(0.5)
+            ]
+            
+            let paramSize = secondLine.size(withAttributes: paramAttributes)
+            let paramRect = CGRect(
+                x: imageSize.width - rightMargin - paramSize.width,
+                y: imageSize.height - 8 - paramSize.height,
+                width: paramSize.width,
+                height: paramSize.height
+            )
+            
+            secondLine.draw(in: paramRect, withAttributes: paramAttributes)
+        }
+    }
+    
     // 🐛 修复：新的宝丽来相框渲染方法，接受原始图像参数
     private func renderPolaroidFrame(
         image: UIImage,
@@ -526,7 +598,8 @@ class PhotoDecorationRenderer {
         showDate: Bool,
         selectedLogo: String?,
         metadata: [String: Any],
-        watermarkInfo: CameraCaptureSettings?
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
     ) {
         autoreleasepool {
             // 计算宝丽来相框的尺寸和位置
@@ -555,72 +628,105 @@ class PhotoDecorationRenderer {
             shadowPath.lineWidth = 2
             shadowPath.stroke()
             
-            // 绘制自定义文字和水印信息
-            var displayText = customText
+            // 绘制自定义文字和水印信息（宝丽来风格）
+            let yOffset = frameSize.height - bottomBorderHeight + bottomBorderHeight * 0.15
             
-            // 如果有水印信息，将其集成到相框文字中
-            if let watermark = watermarkInfo {
-                let watermarkSettings = WatermarkSettings.load()
-                var watermarkComponents: [String] = []
-                
-                // 根据设置添加水印组件
-                if watermarkSettings.showDeviceModel {
-                    watermarkComponents.append(DeviceInfoHelper.getDeviceModel())
-                }
-                
-                if watermarkSettings.showFocalLength {
-                    watermarkComponents.append("\(Int(watermark.focalLength))mm")
-                }
-                
-                if watermarkSettings.showShutterSpeed {
-                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
-                    watermarkComponents.append(shutterDisplay)
-                }
-                
-                if watermarkSettings.showISO {
-                    watermarkComponents.append("ISO\(Int(watermark.iso))")
-                }
-                
-                let watermarkText = watermarkComponents.joined(separator: " | ")
-                
-                // 如果没有自定义文字，使用水印文字；否则组合显示
-                if displayText.isEmpty {
-                    displayText = watermarkText
-                } else if !watermarkText.isEmpty {
-                    displayText = "\(displayText)\n\(watermarkText)"
-                }
-            }
-            
-            if !displayText.isEmpty {
-                // 使用系统字体替代Marker Felt
-                let textFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.3, weight: .medium)
-                let textAttributes: [NSAttributedString.Key: Any] = [
-                    .font: textFont,
-                    .foregroundColor: UIColor.black
+            // 主要文字显示 - 右对齐
+            if !customText.isEmpty {
+                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.35, weight: .regular)
+                let mainAttributes: [NSAttributedString.Key: Any] = [
+                    .font: mainFont,
+                    .foregroundColor: UIColor.black.withAlphaComponent(0.6)
                 ]
                 
-                let textSize = displayText.size(withAttributes: textAttributes)
-                let textRect = CGRect(
-                    x: frameSize.width / 2 - textSize.width / 2,
-                    y: frameSize.height - bottomBorderHeight / 2 - textSize.height / 2,
-                    width: textSize.width,
-                    height: textSize.height
+                let mainSize = customText.size(withAttributes: mainAttributes)
+                let rightMargin: CGFloat = borderWidth
+                let mainRect = CGRect(
+                    x: frameSize.width - rightMargin - mainSize.width,
+                    y: yOffset,
+                    width: mainSize.width,
+                    height: mainSize.height
                 )
                 
-                displayText.draw(in: textRect, withAttributes: textAttributes)
+                customText.draw(in: mainRect, withAttributes: mainAttributes)
             }
             
-            // 绘制Logo
+            // 如果有水印信息，根据相框设置显示
+            if let watermark = watermarkInfo {
+                var infoLine: [String] = []
+                
+                // 根据开关状态收集信息
+                if frameSettings?.showDeviceModel == true {
+                    infoLine.append(DeviceInfoHelper.getDeviceModel())
+                }
+                
+                if frameSettings?.showFocalLength == true {
+                    infoLine.append("\(Int(watermark.focalLength))mm")
+                }
+                
+                if frameSettings?.showShutterSpeed == true {
+                    let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
+                    infoLine.append(shutterDisplay)
+                }
+                
+                if frameSettings?.showISO == true {
+                    infoLine.append("ISO\(Int(watermark.iso))")
+                }
+                
+                if frameSettings?.showAperture == true {
+                    if let exif = metadata["exif"] as? [String: Any],
+                       let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
+                        infoLine.append("f/\(aperture)")
+                    }
+                }
+                
+                if frameSettings?.showDate == true {
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy.MM.dd"
+                    infoLine.append(dateFormatter.string(from: Date()))
+                }
+                
+                // 绘制信息行 - 右对齐，与logo垂直居中对齐
+                if !infoLine.isEmpty {
+                    let infoText = infoLine.joined(separator: " | ")
+                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
+                    let infoAttributes: [NSAttributedString.Key: Any] = [
+                        .font: infoFont,
+                        .foregroundColor: UIColor.black.withAlphaComponent(0.4)
+                    ]
+                    
+                    let infoSize = infoText.size(withAttributes: infoAttributes)
+                    let rightMargin: CGFloat = borderWidth
+                    
+                    // 如果没有自定义文字，与logo垂直居中对齐；有文字时保持原来的位置
+                    let infoY = customText.isEmpty ? 
+                        (frameSize.height - bottomBorderHeight / 2 - infoSize.height / 2) :
+                        (yOffset + bottomBorderHeight * 0.35)
+                    
+                    let infoRect = CGRect(
+                        x: frameSize.width - rightMargin - infoSize.width,
+                        y: infoY,
+                        width: infoSize.width,
+                        height: infoSize.height
+                    )
+                    
+                    infoText.draw(in: infoRect, withAttributes: infoAttributes)
+                }
+            }
+            
+            // 绘制Logo - 保持宽高比
             if let logoName = selectedLogo {
                 print("🏷️ 宝丽来相框 - 开始绘制Logo: \(logoName)")
                 autoreleasepool {
-                    let logoSize = bottomBorderHeight * 0.6
-                    if let logoImage = getLogoImage(logoName, maxSize: logoSize * 2) {
+                    let logoMaxHeight = bottomBorderHeight * 0.4
+                    if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
+                        let logoWidth = logoImage.size.width
+                        let logoHeight = logoImage.size.height
                         let logoRect = CGRect(
                             x: borderWidth,
-                            y: frameSize.height - bottomBorderHeight / 2 - logoSize / 2,
-                            width: logoSize,
-                            height: logoSize
+                            y: frameSize.height - bottomBorderHeight / 2 - logoHeight / 2,
+                            width: logoWidth,
+                            height: logoHeight
                         )
                         
                         print("🏷️ 宝丽来相框 - Logo绘制位置: \(logoRect)")
@@ -631,30 +737,6 @@ class PhotoDecorationRenderer {
                 }
             } else {
                 print("🏷️ 宝丽来相框 - selectedLogo为nil")
-            }
-            
-            // 绘制日期
-            if showDate {
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy.MM.dd"
-                let dateString = dateFormatter.string(from: Date())
-                
-                // 使用系统字体替代Marker Felt
-                let dateFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
-                let dateAttributes: [NSAttributedString.Key: Any] = [
-                    .font: dateFont,
-                    .foregroundColor: UIColor.black.withAlphaComponent(0.6)
-                ]
-                
-                let dateSize = dateString.size(withAttributes: dateAttributes)
-                let dateRect = CGRect(
-                    x: frameSize.width - dateSize.width - borderWidth,
-                    y: frameSize.height - dateSize.height - borderWidth * 0.5,
-                    width: dateSize.width,
-                    height: dateSize.height
-                )
-                
-                dateString.draw(in: dateRect, withAttributes: dateAttributes)
             }
         }
     }

@@ -104,28 +104,69 @@ struct SimplePhotoDecorationView: View {
             
             // 信息设置
             VStack(alignment: .leading, spacing: 10) {
-                Text("信息")
+                Text("信息显示")
                     .font(.headline)
                     .foregroundColor(.white)
                 
-                HStack {
-                    Toggle("日期", isOn: $frameSettings.showDate)
-                        .foregroundColor(.white)
+                // 基础信息
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("基础信息")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                     
-                    Spacer()
-                    
-                    Toggle("位置", isOn: $frameSettings.showLocation)
-                        .foregroundColor(.white)
+                    HStack {
+                        Toggle("日期", isOn: $frameSettings.showDate)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Toggle("位置", isOn: $frameSettings.showLocation)
+                            .foregroundColor(.white)
+                    }
                 }
                 
-                HStack {
-                    Toggle("参数", isOn: $frameSettings.showExifParams)
-                        .foregroundColor(.white)
+                // 设备信息
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("设备信息")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                     
-                    Spacer()
+                    HStack {
+                        Toggle("机型", isOn: $frameSettings.showDeviceModel)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Toggle("焦距", isOn: $frameSettings.showFocalLength)
+                            .foregroundColor(.white)
+                    }
+                }
+                
+                // 拍摄参数
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("拍摄参数")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
                     
-                    Toggle("经纬度", isOn: $frameSettings.showExifDate)
-                        .foregroundColor(.white)
+                    HStack {
+                        Toggle("快门", isOn: $frameSettings.showShutterSpeed)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Toggle("ISO", isOn: $frameSettings.showISO)
+                            .foregroundColor(.white)
+                    }
+                    
+                    HStack {
+                        Toggle("光圈", isOn: $frameSettings.showAperture)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        // 空白占位符保持对齐
+                        HStack { }.frame(maxWidth: .infinity)
+                    }
                 }
             }
         }

@@ -46,6 +46,13 @@ class FrameSettings: ObservableObject {
     @Published var showExifParams: Bool = false
     @Published var showExifDate: Bool = false
     
+    // 新增：更细致的信息控制开关
+    @Published var showDeviceModel: Bool = false      // 显示设备型号
+    @Published var showFocalLength: Bool = false     // 显示焦距
+    @Published var showShutterSpeed: Bool = false    // 显示快门速度
+    @Published var showISO: Bool = false             // 显示ISO
+    @Published var showAperture: Bool = false        // 显示光圈
+    
     // 选择的Logo
     @Published var selectedLogo: String? = nil
     

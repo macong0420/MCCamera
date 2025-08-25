@@ -36,6 +36,11 @@ struct FrameSettingsView: View {
                     frameSettings.showExif = false
                     frameSettings.showExifParams = false
                     frameSettings.showExifDate = false
+                    frameSettings.showDeviceModel = false
+                    frameSettings.showFocalLength = false
+                    frameSettings.showShutterSpeed = false
+                    frameSettings.showISO = false
+                    frameSettings.showAperture = false
                     frameSettings.selectedLogo = nil
                     frameSettings.showSignature = false
                 }) {
