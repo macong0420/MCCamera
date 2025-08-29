@@ -10,7 +10,7 @@ class PhotoProcessor {
         self.locationManager = locationManager
     }
     
-    func savePhotoToLibrary(_ imageData: Data, format: PhotoFormat, aspectRatio: AspectRatio? = nil, frameSettings: FrameSettings? = nil) {
+    func savePhotoToLibrary(_ imageData: Data, format: PhotoFormat, aspectRatio: AspectRatio? = nil, frameSettings: FrameSettings? = nil, captureSettings: CameraCaptureSettings? = nil) {
         PHPhotoLibrary.requestAuthorization { [weak self] status in
             guard status == .authorized else {
                 print("❌ 相册权限未授权")
@@ -23,15 +23,9 @@ class PhotoProcessor {
             // 🚀 关键优化：分步骤处理，每个步骤都有独立的内存管理
             
             // 步骤1：处理相框（如果需要）
+            // 🚀 修复：跳过相框处理，因为已经在CameraService.applyWatermarkIfNeeded中处理了
             var processedImageData = imageData
-            if let frameSettings = frameSettings, frameSettings.selectedFrame != .none {
-                autoreleasepool {
-                    print("💾 步骤1：应用相框")
-                    let photoDecorationService = PhotoDecorationService(frameSettings: frameSettings)
-                    processedImageData = photoDecorationService.applyFrameToPhoto(imageData)
-                    print("✅ 相框应用完成")
-                }
-            }
+            print("💾 步骤1：跳过相框处理（已在CameraService中处理）")
             
             // 步骤2：🚀 智能处理 - 避免重复处理
             var finalImageData: Data? = processedImageData // 默认使用已处理的数据

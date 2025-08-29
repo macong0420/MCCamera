@@ -425,9 +425,18 @@ class CameraService: NSObject, ObservableObject {
                     // 提取相机设置信息供相框使用
                     let captureSettings = extractCaptureSettings(from: photo)
                     
+                    // 🚀 修复：对于需要显示拍摄参数的相框（如大师系列），即使没有水印也要传递captureSettings
+                    let needsCaptureInfo = frameSettings.showISO || frameSettings.showAperture || 
+                                         frameSettings.showFocalLength || frameSettings.showShutterSpeed
+                    
+                    print("🔧 相框参数需求检查:")
+                    print("  - hasWatermark: \(hasWatermark)")
+                    print("  - needsCaptureInfo: \(needsCaptureInfo)")
+                    print("  - 最终传递captureSettings: \(hasWatermark || needsCaptureInfo)")
+                    
                     processedData = photoDecorationService.applyFrameToPhoto(
                         processedData, 
-                        withWatermarkInfo: hasWatermark ? captureSettings : nil,
+                        withWatermarkInfo: (hasWatermark || needsCaptureInfo) ? captureSettings : nil,
                         aspectRatio: currentAspectRatio
                     )
                     print("🎨 相框+水印处理完成，大小: \(processedData.count / 1024 / 1024)MB")
@@ -492,6 +501,9 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
         // 使用最大的autoreleasepool包围整个处理过程
         autoreleasepool {
             print("🎨 开始后台处理 - 当前内存压力较低的线程")
+            
+            // 提取拍摄设置信息
+            let captureSettings = self.extractCaptureSettings(from: photo)
             let dataSize = originalData.count / (1024 * 1024)
             print("📊 原始数据大小: \(dataSize)MB")
             
@@ -517,7 +529,9 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
                 self.photoProcessor.savePhotoToLibrary(
                     finalImageData,
                     format: self.currentPhotoFormat,
-                    aspectRatio: self.currentAspectRatio
+                    aspectRatio: self.currentAspectRatio,
+                    frameSettings: self.currentFrameSettings,
+                    captureSettings: captureSettings
                 )
                 print("✅ 保存完成")
             }

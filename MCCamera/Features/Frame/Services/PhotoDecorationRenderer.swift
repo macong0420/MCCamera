@@ -113,6 +113,36 @@ class PhotoDecorationRenderer {
                 
                 // 🔥 修复：直接在宝丽来分支中获取图像
                 finalImage = UIGraphicsGetImageFromCurrentImageContext()
+            } else if frameType == .masterSeries {
+                // 大师系列相框需要特殊处理：创建更大的画布
+                let signatureHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.08
+                let parametersHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.12
+                let totalBottomSpace = signatureHeight + parametersHeight
+                let sideMargin: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.05
+                
+                let frameSize = CGSize(
+                    width: renderImage.size.width + sideMargin * 2,
+                    height: renderImage.size.height + totalBottomSpace + sideMargin * 2
+                )
+                
+                UIGraphicsBeginImageContextWithOptions(frameSize, false, renderImage.scale)
+                defer { UIGraphicsEndImageContext() }
+                
+                renderMasterSeriesFrame(
+                    image: renderImage,
+                    frameSize: frameSize,
+                    sideMargin: sideMargin,
+                    signatureHeight: signatureHeight,
+                    parametersHeight: parametersHeight,
+                    customText: customText,
+                    selectedLogo: selectedLogo,
+                    metadata: metadata,
+                    watermarkInfo: watermarkInfo,
+                    frameSettings: frameSettings
+                )
+                
+                // 🔥 修复：直接在大师系列分支中获取图像
+                finalImage = UIGraphicsGetImageFromCurrentImageContext()
             } else {
                 // 其他相框类型：在原图上添加装饰
                 UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
@@ -202,6 +232,9 @@ class PhotoDecorationRenderer {
                         )
                     }
                 case .polaroid:
+                    // 已在上面处理
+                    break
+                case .masterSeries:
                     // 已在上面处理
                     break
                 }
@@ -870,6 +903,250 @@ class PhotoDecorationRenderer {
                 
                 infoText.draw(in: infoRect, withAttributes: infoAttributes)
             }
+        }
+    }
+    
+    // 🎨 新增：大师系列相框渲染方法
+    private func renderMasterSeriesFrame(
+        image: UIImage,
+        frameSize: CGSize,
+        sideMargin: CGFloat,
+        signatureHeight: CGFloat,
+        parametersHeight: CGFloat,
+        customText: String,
+        selectedLogo: String?,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
+    ) {
+        autoreleasepool {
+            // 1. 绘制纯白色背景
+            let fullRect = CGRect(x: 0, y: 0, width: frameSize.width, height: frameSize.height)
+            UIColor.white.setFill()
+            UIRectFill(fullRect)
+            
+            // 2. 绘制原始照片到指定区域（居中，留出边距）
+            let photoRect = CGRect(
+                x: sideMargin,
+                y: sideMargin,
+                width: image.size.width,
+                height: image.size.height
+            )
+            image.draw(in: photoRect)
+            
+            // 3. 绘制居中签名区域
+            let signatureY = photoRect.maxY + sideMargin * 0.5
+            renderMasterSeriesSignature(
+                in: CGRect(x: sideMargin, y: signatureY, width: image.size.width, height: signatureHeight),
+                customText: customText,
+                selectedLogo: selectedLogo
+            )
+            
+            // 4. 绘制底部参数区域
+            let parametersY = signatureY + signatureHeight
+            renderMasterSeriesParameters(
+                in: CGRect(x: sideMargin, y: parametersY, width: image.size.width, height: parametersHeight),
+                metadata: metadata,
+                watermarkInfo: watermarkInfo,
+                frameSettings: frameSettings
+            )
+        }
+    }
+    
+    // 🎨 渲染大师系列签名
+    private func renderMasterSeriesSignature(
+        in rect: CGRect,
+        customText: String,
+        selectedLogo: String?
+    ) {
+        // 默认签名文字
+        let signatureText = !customText.isEmpty ? customText : "Photograph anything\nMASTER SERIES"
+        
+        // 手写体风格字体（优雅、艺术感）
+        let signatureFont = UIFont.italicSystemFont(ofSize: rect.height * 0.4)
+        
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: signatureFont,
+            .foregroundColor: UIColor.black.withAlphaComponent(0.8),
+            .paragraphStyle: {
+                let style = NSMutableParagraphStyle()
+                style.alignment = .center
+                style.lineSpacing = rect.height * 0.05
+                return style
+            }()
+        ]
+        
+        // 计算文字尺寸并居中绘制
+        let textRect = signatureText.boundingRect(
+            with: CGSize(width: rect.width, height: rect.height),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: textAttributes,
+            context: nil
+        )
+        
+        let centeredRect = CGRect(
+            x: rect.midX - textRect.width / 2,
+            y: rect.midY - textRect.height / 2,
+            width: textRect.width,
+            height: textRect.height
+        )
+        
+        signatureText.draw(in: centeredRect, withAttributes: textAttributes)
+    }
+    
+    // 🎨 渲染大师系列参数
+    private func renderMasterSeriesParameters(
+        in rect: CGRect,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
+    ) {
+        // 收集参数信息
+        var parameters: [(value: String, unit: String)] = []
+        
+        print("🎯 大师系列参数收集调试:")
+        print("  - frameSettings存在: \(frameSettings != nil)")
+        print("  - watermarkInfo存在: \(watermarkInfo != nil)")
+        if let settings = frameSettings {
+            print("  - showISO: \(settings.showISO)")
+            print("  - showAperture: \(settings.showAperture)")
+            print("  - showFocalLength: \(settings.showFocalLength)")
+            print("  - showShutterSpeed: \(settings.showShutterSpeed)")
+        }
+        
+        // ISO
+        if let watermark = watermarkInfo, frameSettings?.showISO == true {
+            let isoValue = "\(Int(watermark.iso))"
+            parameters.append((value: isoValue, unit: "ISO"))
+            print("  ✅ 添加ISO: \(isoValue)")
+        } else {
+            print("  ❌ ISO未添加: watermark=\(watermarkInfo != nil), showISO=\(frameSettings?.showISO ?? false)")
+        }
+        
+        // 光圈
+        if frameSettings?.showAperture == true {
+            if let exif = metadata["exif"] as? [String: Any],
+               let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
+                let apertureValue = String(format: "%.1f", aperture.doubleValue)
+                parameters.append((value: apertureValue, unit: "F"))
+                print("  ✅ 添加光圈(EXIF): \(apertureValue)")
+            } else {
+                parameters.append((value: "2.8", unit: "F"))
+                print("  ✅ 添加光圈(默认): 2.8")
+            }
+        } else {
+            print("  ❌ 光圈未添加: showAperture=\(frameSettings?.showAperture ?? false)")
+        }
+        
+        // 焦距
+        if let watermark = watermarkInfo, frameSettings?.showFocalLength == true {
+            let focalValue = "\(Int(watermark.focalLength))"
+            parameters.append((value: focalValue, unit: "mm"))
+            print("  ✅ 添加焦距: \(focalValue)")
+        } else {
+            print("  ❌ 焦距未添加: watermark=\(watermarkInfo != nil), showFocalLength=\(frameSettings?.showFocalLength ?? false)")
+        }
+        
+        // 快门
+        if let watermark = watermarkInfo, frameSettings?.showShutterSpeed == true {
+            let shutterText = formatShutterSpeedForMasterSeries(watermark.shutterSpeed)
+            parameters.append((value: shutterText, unit: "S"))
+            print("  ✅ 添加快门: \(shutterText)")
+        } else {
+            print("  ❌ 快门未添加: watermark=\(watermarkInfo != nil), showShutterSpeed=\(frameSettings?.showShutterSpeed ?? false)")
+        }
+        
+        print("  🎯 最终收集到 \(parameters.count) 个参数")
+        
+        // 如果没有参数，使用示例参数
+        if parameters.isEmpty {
+            parameters = [
+                (value: "3200", unit: "ISO"),
+                (value: "2.0", unit: "F"),
+                (value: "23", unit: "mm"),
+                (value: "1/63", unit: "S")
+            ]
+            print("  📝 使用示例参数")
+        }
+        
+        // 绘制参数
+        let parameterCount = parameters.count
+        guard parameterCount > 0 else { return }
+        
+        let itemWidth = rect.width / CGFloat(parameterCount)
+        let valueFont = UIFont.systemFont(ofSize: rect.height * 0.35, weight: .medium)
+        let unitFont = UIFont.systemFont(ofSize: rect.height * 0.2, weight: .light)
+        
+        for (index, parameter) in parameters.enumerated() {
+            let itemRect = CGRect(
+                x: rect.minX + CGFloat(index) * itemWidth,
+                y: rect.minY,
+                width: itemWidth,
+                height: rect.height
+            )
+            
+            // 绘制参数值
+            let valueAttributes: [NSAttributedString.Key: Any] = [
+                .font: valueFont,
+                .foregroundColor: UIColor.black,
+                .paragraphStyle: {
+                    let style = NSMutableParagraphStyle()
+                    style.alignment = .center
+                    return style
+                }()
+            ]
+            
+            let valueSize = parameter.value.size(withAttributes: valueAttributes)
+            let valueRect = CGRect(
+                x: itemRect.midX - valueSize.width / 2,
+                y: itemRect.minY + rect.height * 0.2,
+                width: valueSize.width,
+                height: valueSize.height
+            )
+            
+            parameter.value.draw(in: valueRect, withAttributes: valueAttributes)
+            
+            // 绘制单位
+            let unitAttributes: [NSAttributedString.Key: Any] = [
+                .font: unitFont,
+                .foregroundColor: UIColor.black.withAlphaComponent(0.6),
+                .paragraphStyle: {
+                    let style = NSMutableParagraphStyle()
+                    style.alignment = .center
+                    return style
+                }()
+            ]
+            
+            let unitSize = parameter.unit.size(withAttributes: unitAttributes)
+            let unitRect = CGRect(
+                x: itemRect.midX - unitSize.width / 2,
+                y: valueRect.maxY + rect.height * 0.05,
+                width: unitSize.width,
+                height: unitSize.height
+            )
+            
+            parameter.unit.draw(in: unitRect, withAttributes: unitAttributes)
+            
+            // 绘制分隔线（除了最后一个）
+            if index < parameterCount - 1 {
+                UIColor.black.withAlphaComponent(0.2).setStroke()
+                let separatorPath = UIBezierPath()
+                let separatorX = itemRect.maxX
+                separatorPath.move(to: CGPoint(x: separatorX, y: rect.minY + rect.height * 0.2))
+                separatorPath.addLine(to: CGPoint(x: separatorX, y: rect.maxY - rect.height * 0.2))
+                separatorPath.lineWidth = 1
+                separatorPath.stroke()
+            }
+        }
+    }
+    
+    // 格式化快门速度显示（大师系列专用）
+    private func formatShutterSpeedForMasterSeries(_ shutterSpeed: Double) -> String {
+        if shutterSpeed >= 1.0 {
+            return String(format: "%.0f", shutterSpeed)
+        } else {
+            let fraction = Int(1.0 / shutterSpeed)
+            return "1/\(fraction)"
         }
     }
 }
