@@ -124,31 +124,83 @@ class PhotoDecorationRenderer {
                 // 根据相框类型应用不同的装饰
                 switch frameType {
                 case .bottomText:
-                    renderBottomTextFrame(
-                        imageSize: renderImage.size,
-                        customText: customText,
-                        showDate: showDate,
-                        showLocation: showLocation,
-                        showExif: showExif,
-                        showExifParams: showExifParams,
-                        showExifDate: showExifDate,
-                        selectedLogo: selectedLogo,
-                        showSignature: showSignature,
-                        metadata: metadata,
-                        watermarkInfo: watermarkInfo,
-                        frameSettings: frameSettings
-                    )
+                    // 🔧 修复：底部文字相框也检查是否启用水印功能
+                    if let settings = frameSettings, settings.watermarkEnabled, let watermarkInfo = watermarkInfo {
+                        print("🎨 底部文字相框模式：调用WatermarkService处理专业垂直水印")
+                        // 先获取当前的图像
+                        guard let currentImage = UIGraphicsGetImageFromCurrentImageContext() else { 
+                            // 如果获取失败，使用原有逻辑
+                            renderBottomTextFrame(
+                                imageSize: renderImage.size,
+                                customText: customText,
+                                showDate: showDate,
+                                showLocation: showLocation,
+                                showExif: showExif,
+                                showExifParams: showExifParams,
+                                showExifDate: showExifDate,
+                                selectedLogo: selectedLogo,
+                                showSignature: showSignature,
+                                metadata: metadata,
+                                watermarkInfo: watermarkInfo,
+                                frameSettings: frameSettings
+                            )
+                            break
+                        }
+                        
+                        // 结束当前的绘制上下文
+                        UIGraphicsEndImageContext()
+                        
+                        // 调用WatermarkService来处理水印
+                        let watermarkedImage = WatermarkService.shared.addWatermark(to: currentImage, with: watermarkInfo, aspectRatio: nil)
+                        
+                        // 重新开始绘制上下文并绘制加了水印的图像
+                        UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
+                        watermarkedImage?.draw(at: CGPoint.zero)
+                    } else {
+                        // 底部文字相框且未启用水印：使用原有逻辑
+                        renderBottomTextFrame(
+                            imageSize: renderImage.size,
+                            customText: customText,
+                            showDate: showDate,
+                            showLocation: showLocation,
+                            showExif: showExif,
+                            showExifParams: showExifParams,
+                            showExifDate: showExifDate,
+                            selectedLogo: selectedLogo,
+                            showSignature: showSignature,
+                            metadata: metadata,
+                            watermarkInfo: watermarkInfo,
+                            frameSettings: frameSettings
+                        )
+                    }
                     
                 case .none:
-                    // 无相框：直接在照片上渲染logo和拍摄信息（类似水印）
-                    renderDirectWatermark(
-                        imageSize: renderImage.size,
-                        customText: customText,
-                        selectedLogo: selectedLogo,
-                        metadata: metadata,
-                        watermarkInfo: watermarkInfo,
-                        frameSettings: frameSettings
-                    )
+                    // 无相框：检查是否启用了水印功能，如果启用则使用WatermarkService
+                    if let settings = frameSettings, settings.watermarkEnabled, let watermarkInfo = watermarkInfo {
+                        print("🎨 无相框模式：调用WatermarkService处理专业垂直水印")
+                        // 先获取当前的图像
+                        guard let currentImage = UIGraphicsGetImageFromCurrentImageContext() else { return }
+                        
+                        // 结束当前的绘制上下文
+                        UIGraphicsEndImageContext()
+                        
+                        // 调用WatermarkService来处理水印
+                        let watermarkedImage = WatermarkService.shared.addWatermark(to: currentImage, with: watermarkInfo, aspectRatio: nil)
+                        
+                        // 重新开始绘制上下文并绘制加了水印的图像
+                        UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
+                        watermarkedImage?.draw(at: CGPoint.zero)
+                    } else {
+                        // 无相框且未启用水印：使用原有的直接水印逻辑
+                        renderDirectWatermark(
+                            imageSize: renderImage.size,
+                            customText: customText,
+                            selectedLogo: selectedLogo,
+                            metadata: metadata,
+                            watermarkInfo: watermarkInfo,
+                            frameSettings: frameSettings
+                        )
+                    }
                 case .polaroid:
                     // 已在上面处理
                     break
@@ -170,20 +222,23 @@ class PhotoDecorationRenderer {
             print("❌ 无法加载Logo图像: \(logoName)")
             return nil 
         }
-        print("✅ 成功加载Logo: \(logoName), 尺寸: \(logoImage.size)")
+        print("✅ 成功加载Logo: \(logoName), 原始尺寸: \(logoImage.size)")
         
         // 如果Logo图像高度过大，等比例缩小（保持宽高比）
         if logoImage.size.height > maxHeight {
             var result: UIImage?
             autoreleasepool {
-                let scale = maxHeight / logoImage.size.height
-                let newSize = CGSize(width: logoImage.size.width * scale, height: logoImage.size.height * scale)
+                let aspectRatio = logoImage.size.width / logoImage.size.height
+                let newHeight = maxHeight
+                let newWidth = newHeight * aspectRatio // 保持宽高比
+                let newSize = CGSize(width: newWidth, height: newHeight)
                 
                 UIGraphicsBeginImageContextWithOptions(newSize, false, 0)
                 defer { UIGraphicsEndImageContext() }
                 
                 logoImage.draw(in: CGRect(origin: .zero, size: newSize))
                 result = UIGraphicsGetImageFromCurrentImageContext()
+                print("🏷️ Logo缩放: \(logoImage.size) -> \(newSize), 宽高比: \(String(format: "%.2f", aspectRatio))")
             }
             return result
         }
@@ -285,16 +340,18 @@ class PhotoDecorationRenderer {
             metadata: metadata
         )
         
-        // 绘制Logo - 统一左侧布局
+        // 绘制Logo - 统一左侧布局，保持宽高比
         if let logoName = selectedLogo {
             print("🏷️ 底部文字相框 - 开始绘制Logo: \(logoName)")
             autoreleasepool {
                 let logoMaxHeight = barHeight * 0.4
                 if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                    let logoWidth = logoImage.size.width
-                    let logoHeight = logoImage.size.height
+                    // 保持Logo真实宽高比
+                    let logoAspectRatio = logoImage.size.width / logoImage.size.height
+                    let logoHeight = min(logoImage.size.height, logoMaxHeight)
+                    let logoWidth = logoHeight * logoAspectRatio
                     
-                    print("🏷️ Logo尺寸: \(logoImage.size)")
+                    print("🏷️ Logo尺寸: 原始=\(logoImage.size), 渲染=\(CGSize(width: logoWidth, height: logoHeight)), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
                     
                     let logoRect = CGRect(
                         x: 20,
@@ -625,8 +682,11 @@ class PhotoDecorationRenderer {
                 autoreleasepool {
                     let logoMaxHeight = bottomBorderHeight * 0.4
                     if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                        let logoWidth = logoImage.size.width
-                        let logoHeight = logoImage.size.height
+                        // 保持Logo真实宽高比
+                        let logoAspectRatio = logoImage.size.width / logoImage.size.height
+                        let logoHeight = min(logoImage.size.height, logoMaxHeight)
+                        let logoWidth = logoHeight * logoAspectRatio
+                        
                         let logoRect = CGRect(
                             x: borderWidth,
                             y: frameSize.height - bottomBorderHeight / 2 - logoHeight / 2,
@@ -634,7 +694,7 @@ class PhotoDecorationRenderer {
                             height: logoHeight
                         )
                         
-                        print("🏷️ 宝丽来相框 - Logo绘制位置: \(logoRect)")
+                        print("🏷️ 宝丽来相框 - Logo: 原始=\(logoImage.size), 渲染=\(logoRect.size), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
                         logoImage.draw(in: logoRect)
                     } else {
                         print("❌ 宝丽来相框 - getLogoImage返回nil")
@@ -743,13 +803,19 @@ class PhotoDecorationRenderer {
                 }
             }
             
-            // 获取Logo信息
+            // 获取Logo信息，保持宽高比
             var logoImage: UIImage?
             var logoSize = CGSize.zero
             if let logoName = selectedLogo {
                 let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.05  // 从0.08缩小到0.05
-                logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight)
-                logoSize = logoImage?.size ?? CGSize.zero
+                if let image = getLogoImage(logoName, maxHeight: logoMaxHeight) {
+                    logoImage = image
+                    // 保持Logo真实宽高比
+                    let logoAspectRatio = image.size.width / image.size.height
+                    let logoHeight = min(image.size.height, logoMaxHeight)
+                    let logoWidth = logoHeight * logoAspectRatio
+                    logoSize = CGSize(width: logoWidth, height: logoHeight)
+                }
             }
             
             // 计算垂直对齐的起始Y位置

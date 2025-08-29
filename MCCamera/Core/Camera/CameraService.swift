@@ -453,46 +453,8 @@ class CameraService: NSObject, ObservableObject {
     
     // 提取拍摄设置信息的辅助方法
     private func extractCaptureSettings(from photo: AVCapturePhoto) -> CameraCaptureSettings {
-        var focalLength: Float = 24.0
-        var shutterSpeed: Double = 1.0/60.0
-        var iso: Float = 100.0
-        
-        // 尝试从相机设备获取焦距
-        if let device = currentDevice {
-            switch device.deviceType {
-            case .builtInUltraWideCamera:
-                focalLength = 13.0
-            case .builtInWideAngleCamera:
-                focalLength = 26.0
-            case .builtInTelephotoCamera:
-                focalLength = 77.0
-            default:
-                focalLength = 26.0
-            }
-            
-            // 从设备获取当前ISO和快门速度
-            iso = device.iso
-            shutterSpeed = CMTimeGetSeconds(device.exposureDuration)
-        }
-        
-        // 尝试从照片元数据获取更准确的信息
-        if let metadata = photo.metadata as? [String: Any] {
-            if let exifDict = metadata["{Exif}"] as? [String: Any] {
-                if let focalLengthValue = exifDict["FocalLength"] as? Float {
-                    focalLength = focalLengthValue
-                }
-                if let isoValue = exifDict["ISOSpeedRatings"] as? [Float], let firstISO = isoValue.first {
-                    iso = firstISO
-                } else if let isoValue = exifDict["ISOSpeedRatings"] as? Float {
-                    iso = isoValue
-                }
-                if let exposureTimeValue = exifDict["ExposureTime"] as? Double {
-                    shutterSpeed = exposureTimeValue
-                }
-            }
-        }
-        
-        return CameraCaptureSettings(focalLength: focalLength, shutterSpeed: shutterSpeed, iso: iso)
+        // 使用新的静态方法创建增强的相机设置
+        return CameraCaptureSettings.fromPhoto(photo, device: currentDevice)
     }
 }
 
