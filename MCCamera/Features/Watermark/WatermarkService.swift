@@ -7,16 +7,42 @@ class WatermarkService {
     
     private init() {}
     
+    // 获取当前界面方向
+    private func getCurrentInterfaceOrientation() -> String {
+        let interfaceOrientation = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.interfaceOrientation ?? .portrait
+        
+        switch interfaceOrientation {
+        case .portrait:
+            return "竖屏"
+        case .portraitUpsideDown:
+            return "倒立竖屏"
+        case .landscapeLeft:
+            return "左横屏"
+        case .landscapeRight:
+            return "右横屏"
+        default:
+            return "未知"
+        }
+    }
+    
     func addWatermark(to image: UIImage, with captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio? = nil) -> UIImage? {
         // 🚀 优化：使用autoreleasepool包围整个水印处理过程
         return autoreleasepool {
             let settings = WatermarkSettings.load()
+            
+            // 检测图像方向
+            let isLandscape = image.size.width > image.size.height
+            let currentOrientation = getCurrentInterfaceOrientation()
             
             print("🎨 WatermarkService.addWatermark 被调用")
             print("  - 设置启用: \(settings.isEnabled)")
             print("  - 水印样式: \(settings.watermarkStyle.displayName)")
             print("  - 作者名字: '\(settings.authorName)'")
             print("  - 图像尺寸: \(image.size)")
+            print("  - 图像方向: \(isLandscape ? "横屏" : "竖屏")")
+            print("  - 界面方向: \(currentOrientation)")
             
             guard settings.isEnabled else { 
                 print("  - 水印未启用，返回原图")
@@ -30,7 +56,7 @@ class WatermarkService {
             // 🚀 关键修复：降低阈值到8MP，让12MP图像也使用优化绘制
             if megapixels > 8 {
                 print("  ⚠️ 大图像(\(megapixels)MP)，使用优化的水印绘制")
-                return drawWatermarkOptimized(image: image, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio)
+                return drawWatermarkOptimized(image: image, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
             }
             
             // 🚀 标准水印绘制（包装在autoreleasepool中）
@@ -46,9 +72,9 @@ class WatermarkService {
                     
                     // 根据水印样式选择绘制方法
                     if settings.watermarkStyle == .professionalVertical {
-                        drawProfessionalVerticalWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio)
+                        drawProfessionalVerticalWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
                     } else {
-                        drawWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio)
+                        drawWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
                     }
                 }
             }
@@ -59,7 +85,7 @@ class WatermarkService {
     }
     
     // 🚀 新增：优化的水印绘制方法，用于超大图像
-    private func drawWatermarkOptimized(image: UIImage, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?) -> UIImage? {
+    private func drawWatermarkOptimized(image: UIImage, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?, isLandscape: Bool) -> UIImage? {
         return autoreleasepool {
             print("  🎨 使用优化水印绘制")
             
@@ -79,16 +105,16 @@ class WatermarkService {
                 
                 // 根据水印样式选择简化绘制方法
                 if settings.watermarkStyle == .professionalVertical {
-                    drawProfessionalVerticalWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio)
+                    drawProfessionalVerticalWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
                 } else {
-                    drawWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio)
+                    drawWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
                 }
             }
         }
     }
     
     // 🚀 新增：简化但功能完整的水印绘制方法，减少内存使用
-    private func drawWatermarkSimplified(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?) {
+    private func drawWatermarkSimplified(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?, isLandscape: Bool) {
         context.saveGState()
         
         // 确定有效绘制区域
@@ -99,16 +125,16 @@ class WatermarkService {
             effectiveRect = rect
         }
         
-        // 使用合适的字体大小
+        // 使用合适的字体大小 - 横屏适配
         let baseSize = min(effectiveRect.width, effectiveRect.height)
-        let firstLineFontSize = baseSize * 0.032
-        let secondLineFontSize = baseSize * 0.025
+        let firstLineFontSize = baseSize * (isLandscape ? 0.028 : 0.032)
+        let secondLineFontSize = baseSize * (isLandscape ? 0.022 : 0.025)
         
         let firstLineFont = UIFont.systemFont(ofSize: firstLineFontSize, weight: .medium)
         let secondLineFont = UIFont.systemFont(ofSize: secondLineFontSize, weight: .regular)
         
-        let padding = baseSize * 0.02
-        let bottomPadding = baseSize * 0.04
+        let padding = baseSize * (isLandscape ? 0.015 : 0.02)
+        let bottomPadding = baseSize * (isLandscape ? 0.03 : 0.04)
         let lineSpacing = baseSize * 0.008
         
         let firstLineY = effectiveRect.maxY - bottomPadding - firstLineFont.lineHeight - lineSpacing - secondLineFont.lineHeight
@@ -209,7 +235,7 @@ class WatermarkService {
         attributedString.draw(in: textRect)
     }
     
-    private func drawWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio? = nil) {
+    private func drawWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio? = nil, isLandscape: Bool) {
         print("    🖌️ drawWatermark 开始")
         print("      - 画布尺寸: \(rect.size)")
         print("      - 作者名字: '\(settings.authorName)'")
@@ -232,16 +258,16 @@ class WatermarkService {
         let imageHeight = effectiveRect.height
         let baseSize = min(imageWidth, imageHeight)
         
-        // 根据图片尺寸动态计算间距
-        let basePadding = baseSize * 0.02  // 2%的边距
+        // 🔧 横屏适配：调整间距和字体大小
+        let basePadding = baseSize * (isLandscape ? 0.015 : 0.02)  // 横屏时减小边距
         let lineSpacing = baseSize * 0.008 // 0.8%的行间距
-        let bottomPadding = baseSize * 0.04 // 4%的底部边距
+        let bottomPadding = baseSize * (isLandscape ? 0.03 : 0.04) // 横屏时减小底部边距
         
         let padding = basePadding
         
-        // 根据参考图片，调小字体大小
-        let firstLineFontSize = baseSize * 0.032  // 调小到3.2%
-        let secondLineFontSize = baseSize * 0.025 // 调小到2.5%
+        // 🔧 横屏适配：调整字体大小
+        let firstLineFontSize = baseSize * (isLandscape ? 0.028 : 0.032)  // 横屏时调小字体
+        let secondLineFontSize = baseSize * (isLandscape ? 0.022 : 0.025) // 横屏时调小字体
         
         let firstLineFont = UIFont.systemFont(ofSize: firstLineFontSize, weight: .medium)
         let secondLineFont = UIFont.systemFont(ofSize: secondLineFontSize, weight: .regular)
@@ -363,7 +389,7 @@ class WatermarkService {
     // MARK: - 专业垂直水印渲染
     
     // 🚀 新增：专业垂直水印绘制方法
-    private func drawProfessionalVerticalWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?) {
+    private func drawProfessionalVerticalWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?, isLandscape: Bool) {
         context.saveGState()
         
         // 确定有效绘制区域
@@ -374,13 +400,13 @@ class WatermarkService {
             effectiveRect = rect
         }
         
-        // 计算基本参数
+        // 计算基本参数 - 横屏适配
         let baseSize = min(effectiveRect.width, effectiveRect.height)
-        let logoSize = baseSize * 0.04      // Logo大小
-        let titleFontSize = baseSize * 0.028  // 设备名字体大小
-        let lineFontSize = baseSize * 0.024   // 其他行字体大小
+        let logoSize = baseSize * (isLandscape ? 0.035 : 0.04)      // Logo大小
+        let titleFontSize = baseSize * (isLandscape ? 0.024 : 0.028)  // 设备名字体大小
+        let lineFontSize = baseSize * (isLandscape ? 0.020 : 0.024)   // 其他行字体大小
         let lineSpacing = baseSize * 0.012    // 行间距
-        let bottomPadding = baseSize * 0.05   // 底部边距
+        let bottomPadding = baseSize * (isLandscape ? 0.04 : 0.05)   // 底部边距
         
         // 字体定义
         let titleFont = UIFont.systemFont(ofSize: titleFontSize, weight: .medium)
@@ -490,7 +516,7 @@ class WatermarkService {
     }
     
     // 🚀 新增：简化版专业垂直水印绘制
-    private func drawProfessionalVerticalWatermarkSimplified(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?) {
+    private func drawProfessionalVerticalWatermarkSimplified(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?, isLandscape: Bool) {
         context.saveGState()
         
         // 确定有效绘制区域
@@ -501,12 +527,12 @@ class WatermarkService {
             effectiveRect = rect
         }
         
-        // 计算基本参数
+        // 计算基本参数 - 横屏适配
         let baseSize = min(effectiveRect.width, effectiveRect.height)
-        let titleFontSize = baseSize * 0.028
-        let lineFontSize = baseSize * 0.024
+        let titleFontSize = baseSize * (isLandscape ? 0.024 : 0.028)
+        let lineFontSize = baseSize * (isLandscape ? 0.020 : 0.024)
         let lineSpacing = baseSize * 0.012
-        let bottomPadding = baseSize * 0.05
+        let bottomPadding = baseSize * (isLandscape ? 0.04 : 0.05)
         
         let titleFont = UIFont.systemFont(ofSize: titleFontSize, weight: .medium)
         let lineFont = UIFont.systemFont(ofSize: lineFontSize, weight: .regular)

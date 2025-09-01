@@ -286,10 +286,10 @@ class CameraService: NSObject, ObservableObject {
                 ]
             }
             
-            // 设置方向信息
+            // 设置方向信息 - 根据当前设备方向动态设置
             if let connection = self.photoOutput.connection(with: .video) {
                 if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .portrait
+                    connection.videoOrientation = self.getCurrentVideoOrientation()
                 }
             }
             
@@ -402,6 +402,26 @@ class CameraService: NSObject, ObservableObject {
     
     var is48MPAvailable: Bool {
         return highResolutionManager.is48MPAvailable(for: currentDevice)
+    }
+    
+    // 获取当前设备方向对应的视频方向
+    private func getCurrentVideoOrientation() -> AVCaptureVideoOrientation {
+        let interfaceOrientation = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.interfaceOrientation ?? .portrait
+        
+        switch interfaceOrientation {
+        case .portrait:
+            return .portrait
+        case .portraitUpsideDown:
+            return .portraitUpsideDown
+        case .landscapeLeft:
+            return .landscapeLeft
+        case .landscapeRight:
+            return .landscapeRight
+        default:
+            return .portrait
+        }
     }
     
     // 🚀 优化后的水印和相框功能：智能处理逻辑

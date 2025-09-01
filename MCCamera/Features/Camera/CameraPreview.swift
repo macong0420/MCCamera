@@ -26,6 +26,14 @@ struct CameraPreview: UIViewRepresentable {
         
         context.coordinator.parentView = view
         
+        // 监听设备方向变化
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.orientationDidChange),
+            name: UIDevice.orientationDidChangeNotification,
+            object: nil
+        )
+        
         // 立即返回view，预览层在updateUIView中添加
         return view
     }
@@ -39,10 +47,14 @@ struct CameraPreview: UIViewRepresentable {
             previewLayer.frame = uiView.bounds
             uiView.layer.addSublayer(previewLayer)
             context.coordinator.previewLayer = previewLayer
+            
+            // 设置初始方向
+            context.coordinator.updatePreviewLayerOrientation()
         } else {
-            // 更新frame
+            // 更新frame和方向
             DispatchQueue.main.async {
                 context.coordinator.previewLayer?.frame = uiView.bounds
+                context.coordinator.updatePreviewLayerOrientation()
             }
         }
     }
@@ -58,6 +70,48 @@ struct CameraPreview: UIViewRepresentable {
         
         init(_ parent: CameraPreview) {
             self.parent = parent
+            super.init()
+        }
+        
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+        
+        @objc func orientationDidChange() {
+            DispatchQueue.main.async {
+                self.updatePreviewLayerOrientation()
+            }
+        }
+        
+        func updatePreviewLayerOrientation() {
+            guard let previewLayer = previewLayer,
+                  let connection = previewLayer.connection,
+                  connection.isVideoOrientationSupported else {
+                return
+            }
+            
+            let orientation = getVideoOrientation()
+            print("🔄 更新预览层方向: \(orientation)")
+            connection.videoOrientation = orientation
+        }
+        
+        private func getVideoOrientation() -> AVCaptureVideoOrientation {
+            let interfaceOrientation = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first?.interfaceOrientation ?? .portrait
+            
+            switch interfaceOrientation {
+            case .portrait:
+                return .portrait
+            case .portraitUpsideDown:
+                return .portraitUpsideDown
+            case .landscapeLeft:
+                return .landscapeLeft
+            case .landscapeRight:
+                return .landscapeRight
+            default:
+                return .portrait
+            }
         }
         
         @objc func handleTap(_ gesture: UITapGestureRecognizer) {

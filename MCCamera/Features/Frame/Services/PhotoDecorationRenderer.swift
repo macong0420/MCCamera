@@ -52,6 +52,9 @@ class PhotoDecorationRenderer {
         aspectRatio: AspectRatio?,
         frameSettings: FrameSettings? = nil
     ) -> UIImage {
+        
+        // 检测图像方向
+        let isLandscape = image.size.width > image.size.height
         // 优化：使用更严格的内存管理策略
         var finalImage: UIImage?
         
@@ -90,8 +93,8 @@ class PhotoDecorationRenderer {
             // 🐛 修复：根据相框类型决定是否需要特殊处理
             if frameType == .polaroid {
                 // 宝丽来相框需要特殊处理：创建更大的画布
-                let borderWidth: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.05
-                let bottomBorderHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.15
+                let borderWidth: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.04 : 0.05)
+                let bottomBorderHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.12 : 0.15)
                 let frameSize = CGSize(
                     width: renderImage.size.width + borderWidth * 2,
                     height: renderImage.size.height + borderWidth + bottomBorderHeight
@@ -108,17 +111,18 @@ class PhotoDecorationRenderer {
                     selectedLogo: selectedLogo,
                     metadata: metadata,
                     watermarkInfo: watermarkInfo,
-                    frameSettings: frameSettings
+                    frameSettings: frameSettings,
+                    isLandscape: isLandscape
                 )
                 
                 // 🔥 修复：直接在宝丽来分支中获取图像
                 finalImage = UIGraphicsGetImageFromCurrentImageContext()
             } else if frameType == .masterSeries {
                 // 大师系列相框需要特殊处理：创建更大的画布
-                let signatureHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.08
-                let parametersHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.12
+                let signatureHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.06 : 0.08)
+                let parametersHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.10 : 0.12)
                 let totalBottomSpace = signatureHeight + parametersHeight
-                let sideMargin: CGFloat = min(renderImage.size.width, renderImage.size.height) * 0.05
+                let sideMargin: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.04 : 0.05)
                 
                 let frameSize = CGSize(
                     width: renderImage.size.width + sideMargin * 2,
@@ -138,7 +142,8 @@ class PhotoDecorationRenderer {
                     selectedLogo: selectedLogo,
                     metadata: metadata,
                     watermarkInfo: watermarkInfo,
-                    frameSettings: frameSettings
+                    frameSettings: frameSettings,
+                    isLandscape: isLandscape
                 )
                 
                 // 🔥 修复：直接在大师系列分支中获取图像
@@ -575,12 +580,13 @@ class PhotoDecorationRenderer {
         selectedLogo: String?,
         metadata: [String: Any],
         watermarkInfo: CameraCaptureSettings?,
-        frameSettings: FrameSettings?
+        frameSettings: FrameSettings?,
+        isLandscape: Bool
     ) {
         autoreleasepool {
-            // 计算宝丽来相框的尺寸和位置
-            let borderWidth: CGFloat = min(image.size.width, image.size.height) * 0.05
-            let bottomBorderHeight: CGFloat = min(image.size.width, image.size.height) * 0.15
+            // 计算宝丽来相框的尺寸和位置 - 横屏适配
+            let borderWidth: CGFloat = min(image.size.width, image.size.height) * (isLandscape ? 0.04 : 0.05)
+            let bottomBorderHeight: CGFloat = min(image.size.width, image.size.height) * (isLandscape ? 0.12 : 0.15)
             
             // 绘制白色背景框（整个相框的背景）
             let fullRect = CGRect(x: 0, y: 0, width: frameSize.width, height: frameSize.height)
@@ -612,9 +618,9 @@ class PhotoDecorationRenderer {
             var mainTextSize = CGSize.zero
             var infoTextSize = CGSize.zero
             
-            // 计算主文字尺寸
+            // 计算主文字尺寸 - 横屏适配
             if !customText.isEmpty {
-                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.35, weight: .regular)
+                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.4 : 0.35), weight: .regular)
                 let mainAttributes: [NSAttributedString.Key: Any] = [
                     .font: mainFont,
                     .foregroundColor: UIColor.black.withAlphaComponent(0.6)
@@ -655,7 +661,7 @@ class PhotoDecorationRenderer {
                 
                 if !infoLine.isEmpty {
                     infoText = infoLine.joined(separator: " | ")
-                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
+                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.3 : 0.25), weight: .light)
                     let infoAttributes: [NSAttributedString.Key: Any] = [
                         .font: infoFont,
                         .foregroundColor: UIColor.black.withAlphaComponent(0.4)
@@ -672,7 +678,7 @@ class PhotoDecorationRenderer {
             
             // 主要文字显示 - 右对齐或居中（取决于是否有logo）
             if !customText.isEmpty {
-                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.35, weight: .regular)
+                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.4 : 0.35), weight: .regular)
                 let mainAttributes: [NSAttributedString.Key: Any] = [
                     .font: mainFont,
                     .foregroundColor: UIColor.black.withAlphaComponent(0.6)
@@ -692,7 +698,7 @@ class PhotoDecorationRenderer {
             
             // 绘制信息文字 - 右对齐或居中（取决于是否有logo）
             if !infoText.isEmpty {
-                let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * 0.25, weight: .light)
+                let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.3 : 0.25), weight: .light)
                 let infoAttributes: [NSAttributedString.Key: Any] = [
                     .font: infoFont,
                     .foregroundColor: UIColor.black.withAlphaComponent(0.4)
@@ -917,7 +923,8 @@ class PhotoDecorationRenderer {
         selectedLogo: String?,
         metadata: [String: Any],
         watermarkInfo: CameraCaptureSettings?,
-        frameSettings: FrameSettings?
+        frameSettings: FrameSettings?,
+        isLandscape: Bool
     ) {
         autoreleasepool {
             // 1. 绘制纯白色背景
