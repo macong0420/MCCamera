@@ -941,16 +941,15 @@ class PhotoDecorationRenderer {
             )
             image.draw(in: photoRect)
             
-            // 3. 绘制居中签名区域
-            let signatureY = photoRect.maxY + sideMargin * 0.5
-            renderMasterSeriesSignature(
-                in: CGRect(x: sideMargin, y: signatureY, width: image.size.width, height: signatureHeight),
-                customText: customText,
-                selectedLogo: selectedLogo
+            // 3. 绘制 master_bg 背景图（在参数上方）
+            let bgImageY = photoRect.maxY + sideMargin * 0.3
+            let bgImageHeight = signatureHeight + parametersHeight * 0.6 // 覆盖签名和部分参数区域
+            renderMasterSeriesBackground(
+                in: CGRect(x: sideMargin, y: bgImageY, width: image.size.width, height: bgImageHeight)
             )
             
-            // 4. 绘制底部参数区域
-            let parametersY = signatureY + signatureHeight
+            // 4. 绘制底部参数区域（在背景图上方）
+            let parametersY = photoRect.maxY + sideMargin * 0.5 + signatureHeight
             renderMasterSeriesParameters(
                 in: CGRect(x: sideMargin, y: parametersY, width: image.size.width, height: parametersHeight),
                 metadata: metadata,
@@ -960,45 +959,48 @@ class PhotoDecorationRenderer {
         }
     }
     
-    // 🎨 渲染大师系列签名
-    private func renderMasterSeriesSignature(
-        in rect: CGRect,
-        customText: String,
-        selectedLogo: String?
-    ) {
-        // 默认签名文字
-        let signatureText = !customText.isEmpty ? customText : "Photograph anything\nMASTER SERIES"
+    // 🎨 渲染大师系列背景图
+    private func renderMasterSeriesBackground(in rect: CGRect) {
+        // 加载 master_bg 图片
+        guard let bgImage = UIImage(named: "master_bg") else {
+            print("⚠️ 无法加载 master_bg 图片")
+            return
+        }
         
-        // 手写体风格字体（优雅、艺术感）
-        let signatureFont = UIFont.italicSystemFont(ofSize: rect.height * 0.4)
+        print("🎨 绘制大师系列背景图: 区域=\(rect), 原图尺寸=\(bgImage.size)")
         
-        let textAttributes: [NSAttributedString.Key: Any] = [
-            .font: signatureFont,
-            .foregroundColor: UIColor.black.withAlphaComponent(0.8),
-            .paragraphStyle: {
-                let style = NSMutableParagraphStyle()
-                style.alignment = .center
-                style.lineSpacing = rect.height * 0.05
-                return style
-            }()
-        ]
+        // 保持图片宽高比，填充整个区域
+        let imageAspectRatio = bgImage.size.width / bgImage.size.height
+        let rectAspectRatio = rect.width / rect.height
         
-        // 计算文字尺寸并居中绘制
-        let textRect = signatureText.boundingRect(
-            with: CGSize(width: rect.width, height: rect.height),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: textAttributes,
-            context: nil
-        )
+        var drawRect: CGRect
         
-        let centeredRect = CGRect(
-            x: rect.midX - textRect.width / 2,
-            y: rect.midY - textRect.height / 2,
-            width: textRect.width,
-            height: textRect.height
-        )
+        if imageAspectRatio > rectAspectRatio {
+            // 图片更宽，以高度为准
+            let drawWidth = rect.height * imageAspectRatio
+            let offsetX = (rect.width - drawWidth) / 2
+            drawRect = CGRect(
+                x: rect.minX + offsetX,
+                y: rect.minY,
+                width: drawWidth,
+                height: rect.height
+            )
+        } else {
+            // 图片更高，以宽度为准
+            let drawHeight = rect.width / imageAspectRatio
+            let offsetY = (rect.height - drawHeight) / 2
+            drawRect = CGRect(
+                x: rect.minX,
+                y: rect.minY + offsetY,
+                width: rect.width,
+                height: drawHeight
+            )
+        }
         
-        signatureText.draw(in: centeredRect, withAttributes: textAttributes)
+        // 设置透明度并绘制背景图
+        bgImage.draw(in: drawRect, blendMode: .normal, alpha: 0.8)
+        
+        print("🎨 背景图绘制完成: 绘制区域=\(drawRect)")
     }
     
     // 🎨 渲染大师系列参数

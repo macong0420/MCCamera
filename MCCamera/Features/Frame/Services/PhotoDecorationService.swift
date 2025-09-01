@@ -50,10 +50,13 @@ class PhotoDecorationService {
             let metadata = getMetadataFromImageData(imageData)
             
             // 根据相框类型和设置渲染装饰
+            // 大师相框模式下不使用自定义文字
+            let customTextToUse = frameSettings.selectedFrame == .masterSeries ? "" : frameSettings.customText
+            
             let decoratedImage = renderer.renderDecoration(
                 on: image,
                 frameType: frameSettings.selectedFrame,
-                customText: frameSettings.customText,
+                customText: customTextToUse,
                 showDate: frameSettings.showDate,
                 showLocation: frameSettings.showLocation,
                 showExif: frameSettings.showExif,

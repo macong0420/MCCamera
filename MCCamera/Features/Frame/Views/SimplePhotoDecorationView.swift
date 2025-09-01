@@ -120,28 +120,54 @@ struct SimplePhotoDecorationView: View {
                 }
             }
             
-            // 文字设置
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("文字")
-                        .font(.system(size: 16))
-                        .foregroundColor(.gray)
+            // 文字设置（大师相框模式下禁用）
+            if frameSettings.selectedFrame != .masterSeries {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("文字")
+                            .font(.system(size: 16))
+                            .foregroundColor(.gray)
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: Binding(
+                            get: { !frameSettings.customText.isEmpty },
+                            set: { if !$0 { frameSettings.customText = "" } }
+                        ))
+                        .labelsHidden()
+                    }
                     
-                    Spacer()
-                    
-                    Toggle("", isOn: Binding(
-                        get: { !frameSettings.customText.isEmpty },
-                        set: { if !$0 { frameSettings.customText = "" } }
-                    ))
-                    .labelsHidden()
+                    if !frameSettings.customText.isEmpty {
+                        TextField("输入文字", text: $frameSettings.customText)
+                            .padding(8)
+                            .background(Color.black.opacity(0.3))
+                            .cornerRadius(8)
+                            .foregroundColor(.white)
+                    }
                 }
-                
-                if !frameSettings.customText.isEmpty {
-                    TextField("输入文字", text: $frameSettings.customText)
-                        .padding(8)
-                        .background(Color.black.opacity(0.3))
-                        .cornerRadius(8)
-                        .foregroundColor(.white)
+            } else {
+                // 大师相框模式的说明
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("文字")
+                            .font(.system(size: 16))
+                            .foregroundColor(.gray.opacity(0.6))
+                        
+                        Spacer()
+                        
+                        Text("大师相框")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange.opacity(0.8))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.orange.opacity(0.2))
+                            .cornerRadius(4)
+                    }
+                    
+                    Text("大师相框模式使用专属背景，不支持自定义文字")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray.opacity(0.7))
+                        .italic()
                 }
             }
             
@@ -262,6 +288,11 @@ struct SimplePhotoDecorationView: View {
     private func frameTypeButton(_ frameType: FrameType) -> some View {
         Button(action: {
             frameSettings.selectedFrame = frameType
+            
+            // 如果选择大师相框，清除自定义文字
+            if frameType == .masterSeries {
+                frameSettings.customText = ""
+            }
         }) {
             VStack {
                 if let previewImage = frameType.previewImage {
