@@ -1,9 +1,8 @@
 import Foundation
 
-// 水印样式枚举
+// 🎨 简化：水印样式枚举 - 只保留一种统一样式
 enum WatermarkStyle: String, CaseIterable, Codable {
-    case classic = "经典水印"
-    case professionalVertical = "专业垂直"
+    case unified = "统一水印"
     
     var displayName: String {
         return self.rawValue
@@ -99,7 +98,7 @@ enum BrandLogo: String, CaseIterable, Codable {
 struct WatermarkSettings: Codable {
     // 基本设置
     var isEnabled: Bool = false
-    var watermarkStyle: WatermarkStyle = .classic
+    var watermarkStyle: WatermarkStyle = .unified
     var position: WatermarkPosition = .bottomLeft
     
     // 经典水印设置
@@ -124,6 +123,10 @@ struct WatermarkSettings: Codable {
     var showAperture: Bool = true
     var showTimeStamp: Bool = false
     var showLocation: Bool = false
+    
+    // 🎨 新增：独立的Logo和信息位置控制
+    var logoPosition: PositionAlignment = .center
+    var infoPosition: PositionAlignment = .center
     
     static let shared = WatermarkSettings()
     

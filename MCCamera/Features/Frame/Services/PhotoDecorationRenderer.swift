@@ -391,8 +391,18 @@ class PhotoDecorationRenderer {
                     
                     print("🏷️ Logo尺寸: 原始=\(logoImage.size), 渲染=\(CGSize(width: logoWidth, height: logoHeight)), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
                     
+                    // 🎨 根据logoPosition动态计算X坐标
+                    let logoPosition = frameSettings?.logoPosition ?? .left  // 底部文字相框默认左对齐
+                    let logoX = calculateXPosition(
+                        for: logoPosition,
+                        containerWidth: imageSize.width,
+                        contentWidth: logoWidth,
+                        leftMargin: 20,  // 左边距
+                        rightMargin: 20  // 右边距
+                    )
+                    
                     let logoRect = CGRect(
-                        x: 20,
+                        x: logoX,  // 🎨 使用动态计算的X坐标
                         y: imageSize.height - barHeight / 2 - logoHeight / 2,
                         width: logoWidth,
                         height: logoHeight
@@ -514,7 +524,7 @@ class PhotoDecorationRenderer {
         let textBlockStartY = imageSize.height - barHeight + (barHeight - totalTextHeight) / 2
         var currentY = textBlockStartY
         
-        // 绘制主文字 - 右对齐
+        // 🎨 绘制主文字 - 支持动态位置
         if !customText.isEmpty {
             let mainFont = UIFont.systemFont(ofSize: barHeight * 0.4, weight: .regular)
             let mainAttributes: [NSAttributedString.Key: Any] = [
@@ -522,8 +532,18 @@ class PhotoDecorationRenderer {
                 .foregroundColor: UIColor.black.withAlphaComponent(0.7)
             ]
             
+            // 🎨 根据infoPosition动态计算X坐标（主文字跟随信息位置设置）
+            let infoPosition = frameSettings?.infoPosition ?? .right  // 底部文字相框默认右对齐
+            let mainX = calculateXPosition(
+                for: infoPosition,
+                containerWidth: imageSize.width,
+                contentWidth: mainSize.width,
+                leftMargin: rightMargin,
+                rightMargin: rightMargin
+            )
+            
             let mainRect = CGRect(
-                x: imageSize.width - rightMargin - mainSize.width,
+                x: mainX,
                 y: currentY,
                 width: mainSize.width,
                 height: mainSize.height
@@ -533,7 +553,7 @@ class PhotoDecorationRenderer {
             currentY += mainSize.height + 4
         }
         
-        // 绘制第一行信息 - 右对齐
+        // 🎨 绘制第一行信息 - 支持动态位置
         if !firstLine.isEmpty {
             let infoFont = UIFont.systemFont(ofSize: barHeight * 0.28, weight: .regular)
             let infoAttributes: [NSAttributedString.Key: Any] = [
@@ -541,8 +561,18 @@ class PhotoDecorationRenderer {
                 .foregroundColor: UIColor.black.withAlphaComponent(0.6)
             ]
             
+            // 🎨 根据infoPosition动态计算X坐标
+            let infoPosition = frameSettings?.infoPosition ?? .right
+            let infoX = calculateXPosition(
+                for: infoPosition,
+                containerWidth: imageSize.width,
+                contentWidth: infoSize.width,
+                leftMargin: rightMargin,
+                rightMargin: rightMargin
+            )
+            
             let infoRect = CGRect(
-                x: imageSize.width - rightMargin - infoSize.width,
+                x: infoX,
                 y: currentY,
                 width: infoSize.width,
                 height: infoSize.height
@@ -552,7 +582,7 @@ class PhotoDecorationRenderer {
             currentY += infoSize.height + 4
         }
         
-        // 绘制第二行信息 - 右对齐
+        // 🎨 绘制第二行信息 - 支持动态位置
         if !secondLine.isEmpty {
             let paramFont = UIFont.systemFont(ofSize: barHeight * 0.25, weight: .light)
             let paramAttributes: [NSAttributedString.Key: Any] = [
@@ -560,8 +590,18 @@ class PhotoDecorationRenderer {
                 .foregroundColor: UIColor.black.withAlphaComponent(0.5)
             ]
             
+            // 🎨 根据infoPosition动态计算X坐标
+            let infoPosition = frameSettings?.infoPosition ?? .right
+            let paramX = calculateXPosition(
+                for: infoPosition,
+                containerWidth: imageSize.width,
+                contentWidth: paramSize.width,
+                leftMargin: rightMargin,
+                rightMargin: rightMargin
+            )
+            
             let paramRect = CGRect(
-                x: imageSize.width - rightMargin - paramSize.width,
+                x: paramX,
                 y: currentY,
                 width: paramSize.width,
                 height: paramSize.height
@@ -672,13 +712,18 @@ class PhotoDecorationRenderer {
                 }
             }
             
-            // 🔧 重新设计布局：Logo和信息整体垂直居中于底部白框，Logo和信息间距8px
+            // 🎨 动态位置布局：支持Logo和信息的独立位置控制
             var currentY: CGFloat
             var logoY: CGFloat?
             let spacingBetweenLogoAndInfo: CGFloat = 8  // 🔧 固定8px间距
+            let borderMargin: CGFloat = borderWidth  // 边距
+            
+            // 获取位置设置（如果frameSettings可用）
+            let logoPosition = frameSettings?.logoPosition ?? .center
+            let infoPosition = frameSettings?.infoPosition ?? .center
             
             if hasLogo {
-                // 🔧 有Logo时：计算Logo和信息的总高度，然后整体垂直居中
+                // 🎨 有Logo时：计算Logo和信息的总高度，然后整体垂直居中
                 let logoHeight = bottomBorderHeight * 0.25  // Logo固定高度
                 let totalContentHeight = logoHeight + spacingBetweenLogoAndInfo + totalTextHeight
                 
@@ -712,7 +757,7 @@ class PhotoDecorationRenderer {
                 currentY += mainTextSize.height + (infoText.isEmpty ? 0 : bottomBorderHeight * 0.1)
             }
             
-            // 绘制信息文字 - 始终居中布局
+            // 🎨 绘制信息文字 - 支持动态位置
             if !infoText.isEmpty {
                 let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.15 : 0.13), weight: .light)  // 🔧 修复：继续减小字体
                 let infoAttributes: [NSAttributedString.Key: Any] = [
@@ -720,8 +765,17 @@ class PhotoDecorationRenderer {
                     .foregroundColor: UIColor.black  // 🔧 修复：使用纯黑色，去掉透明度
                 ]
                 
+                // 🎨 根据infoPosition动态计算X坐标
+                let infoX = calculateXPosition(
+                    for: infoPosition,
+                    containerWidth: frameSize.width,
+                    contentWidth: infoTextSize.width,
+                    leftMargin: borderMargin,
+                    rightMargin: borderMargin
+                )
+                
                 let infoRect = CGRect(
-                    x: frameSize.width / 2 - infoTextSize.width / 2,  // 🔧 修复：始终水平居中
+                    x: infoX,
                     y: currentY,
                     width: infoTextSize.width,
                     height: infoTextSize.height
@@ -741,8 +795,17 @@ class PhotoDecorationRenderer {
                         let logoHeight = logoMaxHeight  // 使用固定高度
                         let logoWidth = logoHeight * logoAspectRatio  // 宽度自适应保持比例
                         
+                        // 🎨 根据logoPosition动态计算X坐标
+                        let logoX = calculateXPosition(
+                            for: logoPosition,
+                            containerWidth: frameSize.width,
+                            contentWidth: logoWidth,
+                            leftMargin: borderMargin,
+                            rightMargin: borderMargin
+                        )
+                        
                         let logoRect = CGRect(
-                            x: frameSize.width / 2 - logoWidth / 2,  // 🔧 修复：Logo水平居中
+                            x: logoX,  // 🎨 使用动态计算的X坐标
                             y: logoY ?? (frameSize.height - bottomBorderHeight / 2 - logoHeight / 2),  // 🔧 使用计算的Y坐标
                             width: logoWidth,
                             height: logoHeight
@@ -1171,6 +1234,26 @@ class PhotoDecorationRenderer {
         } else {
             let fraction = Int(1.0 / shutterSpeed)
             return "1/\(fraction)"
+        }
+    }
+    
+    // MARK: - 位置计算辅助函数
+    
+    /// 根据位置对齐方式计算X坐标
+    private func calculateXPosition(
+        for alignment: PositionAlignment,
+        containerWidth: CGFloat,
+        contentWidth: CGFloat,
+        leftMargin: CGFloat = 0,
+        rightMargin: CGFloat = 0
+    ) -> CGFloat {
+        switch alignment {
+        case .left:
+            return leftMargin
+        case .center:
+            return (containerWidth - contentWidth) / 2
+        case .right:
+            return containerWidth - contentWidth - rightMargin
         }
     }
 }

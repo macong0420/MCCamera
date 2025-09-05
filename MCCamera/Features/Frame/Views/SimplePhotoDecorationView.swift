@@ -38,49 +38,11 @@ struct SimplePhotoDecorationView: View {
                 }
                 
                 if frameSettings.watermarkEnabled {
-                    // 水印样式选择
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("水印样式")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                        
-                        Picker("水印样式", selection: $frameSettings.watermarkStyle) {
-                            ForEach(WatermarkStyle.allCases, id: \.self) { style in
-                                Text(style.displayName).tag(style)
-                            }
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    }
-                    
-                    // 水印位置选择
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("水印位置")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                        
-                        Picker("水印位置", selection: $frameSettings.watermarkPosition) {
-                            ForEach(WatermarkPosition.allCases, id: \.self) { position in
-                                Text(position.displayName).tag(position)
-                            }
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
-                    }
-                    
-                    // 根据样式显示不同设置
-                    if frameSettings.watermarkStyle == .classic {
-                        // 经典水印设置
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("作者信息")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                            
-                            TextField("输入您的名字", text: $frameSettings.authorName)
-                                .padding(8)
-                                .background(Color.black.opacity(0.3))
-                                .cornerRadius(8)
-                                .foregroundColor(.white)
-                        }
-                    }
+                    // 🎨 简化：移除水印样式和位置选择，使用统一的水印系统
+                    Text("水印已启用")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .italic()
                 }
             }
             
@@ -209,6 +171,44 @@ struct SimplePhotoDecorationView: View {
                 }
             }
             
+            // 🎨 新增：位置设置（只在支持的相框模式下显示）
+            if frameSettings.selectedFrame == .polaroid || frameSettings.selectedFrame == .bottomText {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("位置设置")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                    
+                    // Logo位置设置
+                    if frameSettings.selectedDynamicLogo != nil && frameSettings.selectedDynamicLogo?.imageName != "none" {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Logo位置")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                            
+                            Picker("Logo位置", selection: $frameSettings.logoPosition) {
+                                ForEach(PositionAlignment.allCases) { position in
+                                    Text(position.displayName).tag(position)
+                                }
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                        }
+                    }
+                    
+                    // 信息位置设置
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("信息位置")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        Picker("信息位置", selection: $frameSettings.infoPosition) {
+                            ForEach(PositionAlignment.allCases) { position in
+                                Text(position.displayName).tag(position)
+                            }
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
+                    }
+                }
+            }
             
             // 信息设置
             VStack(alignment: .leading, spacing: 10) {

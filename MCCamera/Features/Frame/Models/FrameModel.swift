@@ -1,6 +1,19 @@
 import Foundation
 import SwiftUI
 
+// 位置对齐枚举
+enum PositionAlignment: String, CaseIterable, Codable, Identifiable {
+    case left = "左对齐"
+    case center = "居中" 
+    case right = "右对齐"
+    
+    var id: String { self.rawValue }
+    
+    var displayName: String {
+        return self.rawValue
+    }
+}
+
 // 相框类型枚举
 enum FrameType: String, CaseIterable, Identifiable {
     case none = "无"
@@ -60,7 +73,7 @@ class FrameSettings: ObservableObject {
     
     // 水印相关设置
     @Published var watermarkEnabled: Bool = false     // 是否启用水印
-    @Published var watermarkStyle: WatermarkStyle = .classic  // 水印样式
+    @Published var watermarkStyle: WatermarkStyle = .unified  // 水印样式（简化为统一样式）
     @Published var watermarkPosition: WatermarkPosition = .bottomLeft  // 水印位置
     
     // 经典水印设置
@@ -74,6 +87,10 @@ class FrameSettings: ObservableObject {
     
     // 参数行详细控制
     @Published var showTimeStamp: Bool = false       // 显示时间戳
+    
+    // 🎨 新增：Logo和信息位置控制
+    @Published var logoPosition: PositionAlignment = .center      // Logo位置
+    @Published var infoPosition: PositionAlignment = .center      // 信息位置
     
     // MARK: - 水印设置同步
     
@@ -120,7 +137,13 @@ class FrameSettings: ObservableObject {
         watermarkSettings.showDate = self.showDate
         watermarkSettings.showTimeStamp = self.showTimeStamp
         
+        // 🎨 同步位置设置
+        watermarkSettings.logoPosition = self.logoPosition
+        watermarkSettings.infoPosition = self.infoPosition
+        
         print("  🔧 FrameSettings -> WatermarkSettings 参数同步:")
+        print("    - logoPosition: \(self.logoPosition.displayName) -> \(watermarkSettings.logoPosition.displayName)")
+        print("    - infoPosition: \(self.infoPosition.displayName) -> \(watermarkSettings.infoPosition.displayName)")
         print("    - showDeviceModel: \(self.showDeviceModel) -> \(watermarkSettings.showDeviceModel)")
         print("    - showFocalLength: \(self.showFocalLength) -> \(watermarkSettings.showFocalLength)")
         print("    - showShutterSpeed: \(self.showShutterSpeed) -> \(watermarkSettings.showShutterSpeed)")

@@ -59,23 +59,19 @@ class WatermarkService {
                 return drawWatermarkOptimized(image: image, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
             }
             
-            // 🚀 标准水印绘制（包装在autoreleasepool中）
+            // 🚀 统一水印绘制（包装在autoreleasepool中）
             var result: UIImage?
             autoreleasepool {
                 let renderer = UIGraphicsImageRenderer(size: image.size)
                 
-                print("  - 开始绘制水印...")
+                print("  - 开始绘制统一水印...")
                 result = renderer.image { context in
                     image.draw(at: CGPoint.zero)
                     
                     let rect = CGRect(origin: CGPoint.zero, size: image.size)
                     
-                    // 根据水印样式选择绘制方法
-                    if settings.watermarkStyle == .professionalVertical {
-                        drawProfessionalVerticalWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
-                    } else {
-                        drawWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
-                    }
+                    // 🎨 统一使用专业垂直水印样式
+                    drawProfessionalVerticalWatermark(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
                 }
             }
             
@@ -103,111 +99,12 @@ class WatermarkService {
                 // 绘制水印（简化版本）
                 let rect = CGRect(origin: CGPoint.zero, size: image.size)
                 
-                // 根据水印样式选择简化绘制方法
-                if settings.watermarkStyle == .professionalVertical {
-                    drawProfessionalVerticalWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
-                } else {
-                    drawWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
-                }
+                // 🎨 使用简化版统一水印样式
+                drawProfessionalVerticalWatermarkSimplified(in: rect, context: context.cgContext, settings: settings, captureSettings: captureSettings, aspectRatio: aspectRatio, isLandscape: isLandscape)
             }
         }
     }
     
-    // 🚀 新增：简化但功能完整的水印绘制方法，减少内存使用
-    private func drawWatermarkSimplified(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?, isLandscape: Bool) {
-        context.saveGState()
-        
-        // 确定有效绘制区域
-        let effectiveRect: CGRect
-        if let aspectRatio = aspectRatio, aspectRatio != .ratio4_3 {
-            effectiveRect = aspectRatio.getCropRect(for: rect.size)
-        } else {
-            effectiveRect = rect
-        }
-        
-        // 使用合适的字体大小 - 横屏适配
-        let baseSize = min(effectiveRect.width, effectiveRect.height)
-        let firstLineFontSize = baseSize * (isLandscape ? 0.028 : 0.032)
-        let secondLineFontSize = baseSize * (isLandscape ? 0.022 : 0.025)
-        
-        let firstLineFont = UIFont.systemFont(ofSize: firstLineFontSize, weight: .medium)
-        let secondLineFont = UIFont.systemFont(ofSize: secondLineFontSize, weight: .regular)
-        
-        let padding = baseSize * (isLandscape ? 0.015 : 0.02)
-        let bottomPadding = baseSize * (isLandscape ? 0.03 : 0.04)
-        let lineSpacing = baseSize * 0.008
-        
-        let firstLineY = effectiveRect.maxY - bottomPadding - firstLineFont.lineHeight - lineSpacing - secondLineFont.lineHeight
-        let secondLineY = effectiveRect.maxY - bottomPadding - secondLineFont.lineHeight
-        
-        // 第一行：作者信息
-        if !settings.authorName.isEmpty {
-            let firstLineText = "PHOTO BY \(settings.authorName)"
-            let textSize = firstLineText.size(withAttributes: [.font: firstLineFont])
-            let centerX = effectiveRect.minX + (effectiveRect.width - textSize.width) / 2
-            
-            drawTextSimplified(firstLineText, 
-                             font: firstLineFont, 
-                             at: CGPoint(x: centerX, y: firstLineY))
-        }
-        
-        // 第二行：相机信息
-        var secondLineComponents: [String] = []
-        
-        if settings.showDeviceModel {
-            let deviceModel = DeviceInfoHelper.getDetailedDeviceModel()
-            secondLineComponents.append(deviceModel)
-        }
-        
-        if settings.showFocalLength {
-            let focalLength = String(format: "%.0fmm", captureSettings.focalLength)
-            secondLineComponents.append(focalLength)
-        }
-        
-        if settings.showShutterSpeed {
-            let shutterSpeed = formatShutterSpeed(captureSettings.shutterSpeed)
-            secondLineComponents.append(shutterSpeed)
-        }
-        
-        if settings.showISO {
-            let iso = String(format: "ISO%.0f", captureSettings.iso)
-            secondLineComponents.append(iso)
-        }
-        
-        if settings.showDate {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy.MM.dd"
-            let dateString = dateFormatter.string(from: Date())
-            secondLineComponents.append(dateString)
-        }
-        
-        if !secondLineComponents.isEmpty {
-            let leftText = secondLineComponents.first ?? ""
-            let centerText = secondLineComponents.count > 1 ? secondLineComponents[1...].prefix(2).joined(separator: "  ") : ""
-            let rightText = secondLineComponents.count > 3 ? secondLineComponents.last ?? "" : (secondLineComponents.count == 2 ? "" : secondLineComponents.last ?? "")
-            
-            drawTextSimplified(leftText, 
-                             font: secondLineFont, 
-                             at: CGPoint(x: effectiveRect.minX + padding, y: secondLineY))
-            
-            if !centerText.isEmpty {
-                let centerX = effectiveRect.minX + effectiveRect.width / 2
-                let centerSize = centerText.size(withAttributes: [.font: secondLineFont])
-                drawTextSimplified(centerText, 
-                                 font: secondLineFont, 
-                                 at: CGPoint(x: centerX - centerSize.width / 2, y: secondLineY))
-            }
-            
-            if !rightText.isEmpty && rightText != centerText && rightText != leftText {
-                let rightSize = rightText.size(withAttributes: [.font: secondLineFont])
-                drawTextSimplified(rightText, 
-                                 font: secondLineFont, 
-                                 at: CGPoint(x: effectiveRect.maxX - padding - rightSize.width, y: secondLineY))
-            }
-        }
-        
-        context.restoreGState()
-    }
     
     // 🚀 新增：超快速文字绘制方法，只有白色文字和轻微阴影
     private func drawTextSimplified(_ text: String, font: UIFont, at point: CGPoint) {
@@ -235,147 +132,7 @@ class WatermarkService {
         attributedString.draw(in: textRect)
     }
     
-    private func drawWatermark(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio? = nil, isLandscape: Bool) {
-        print("    🖌️ drawWatermark 开始")
-        print("      - 画布尺寸: \(rect.size)")
-        print("      - 作者名字: '\(settings.authorName)'")
-        
-        context.saveGState()
-        
-        // 确定有效绘制区域（考虑比例裁剪）
-        let effectiveRect: CGRect
-        if let aspectRatio = aspectRatio, aspectRatio != .ratio4_3 {
-            effectiveRect = aspectRatio.getCropRect(for: rect.size)
-            print("      - 应用比例裁剪: \(aspectRatio.rawValue)")
-            print("      - 有效绘制区域: \(effectiveRect)")
-        } else {
-            effectiveRect = rect
-            print("      - 使用完整画布")
-        }
-        
-        // 根据有效区域尺寸动态计算字体大小，确保在不同分辨率下都有合适的比例
-        let imageWidth = effectiveRect.width
-        let imageHeight = effectiveRect.height
-        let baseSize = min(imageWidth, imageHeight)
-        
-        // 🔧 横屏适配：调整间距和字体大小
-        let basePadding = baseSize * (isLandscape ? 0.015 : 0.02)  // 横屏时减小边距
-        let lineSpacing = baseSize * 0.008 // 0.8%的行间距
-        let bottomPadding = baseSize * (isLandscape ? 0.03 : 0.04) // 横屏时减小底部边距
-        
-        let padding = basePadding
-        
-        // 🔧 横屏适配：调整字体大小
-        let firstLineFontSize = baseSize * (isLandscape ? 0.028 : 0.032)  // 横屏时调小字体
-        let secondLineFontSize = baseSize * (isLandscape ? 0.022 : 0.025) // 横屏时调小字体
-        
-        let firstLineFont = UIFont.systemFont(ofSize: firstLineFontSize, weight: .medium)
-        let secondLineFont = UIFont.systemFont(ofSize: secondLineFontSize, weight: .regular)
-        
-        print("      - 图片尺寸: \(imageWidth) x \(imageHeight)")
-        print("      - 第一行字体大小: \(firstLineFontSize)")
-        print("      - 第二行字体大小: \(secondLineFontSize)")
-        
-        let firstLineY = effectiveRect.maxY - bottomPadding - firstLineFont.lineHeight - lineSpacing - secondLineFont.lineHeight
-        let secondLineY = effectiveRect.maxY - bottomPadding - secondLineFont.lineHeight
-        
-        if !settings.authorName.isEmpty {
-            let firstLineText = "PHOTO BY \(settings.authorName)"
-            let textSize = firstLineText.size(withAttributes: [.font: firstLineFont])
-            let centerX = effectiveRect.minX + (effectiveRect.width - textSize.width) / 2
-            
-            drawText(firstLineText, 
-                    font: firstLineFont, 
-                    color: .white, 
-                    at: CGPoint(x: centerX, y: firstLineY), 
-                    in: context)
-        }
-        
-        var secondLineComponents: [String] = []
-        
-        if settings.showDeviceModel {
-            let deviceModel = DeviceInfoHelper.getDetailedDeviceModel()
-            secondLineComponents.append(deviceModel)
-        }
-        
-        if settings.showFocalLength {
-            let focalLength = String(format: "%.0fmm", captureSettings.focalLength)
-            secondLineComponents.append(focalLength)
-        }
-        
-        if settings.showShutterSpeed {
-            let shutterSpeed = formatShutterSpeed(captureSettings.shutterSpeed)
-            secondLineComponents.append(shutterSpeed)
-        }
-        
-        if settings.showISO {
-            let iso = String(format: "ISO%.0f", captureSettings.iso)
-            secondLineComponents.append(iso)
-        }
-        
-        if settings.showDate {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy.MM.dd"
-            let dateString = dateFormatter.string(from: Date())
-            secondLineComponents.append(dateString)
-        }
-        
-        if !secondLineComponents.isEmpty {
-            let leftText = secondLineComponents.first ?? ""
-            let centerText = secondLineComponents.count > 1 ? secondLineComponents[1...].prefix(2).joined(separator: "  ") : ""
-            let rightText = secondLineComponents.count > 3 ? secondLineComponents.last ?? "" : (secondLineComponents.count == 2 ? "" : secondLineComponents.last ?? "")
-            
-            drawText(leftText, 
-                    font: secondLineFont, 
-                    color: .white, 
-                    at: CGPoint(x: effectiveRect.minX + padding, y: secondLineY), 
-                    in: context)
-            
-            if !centerText.isEmpty {
-                let centerX = effectiveRect.minX + effectiveRect.width / 2
-                let centerSize = centerText.size(withAttributes: [.font: secondLineFont])
-                drawText(centerText, 
-                        font: secondLineFont, 
-                        color: .white, 
-                        at: CGPoint(x: centerX - centerSize.width / 2, y: secondLineY), 
-                        in: context)
-            }
-            
-            if !rightText.isEmpty && rightText != centerText && rightText != leftText {
-                let rightSize = rightText.size(withAttributes: [.font: secondLineFont])
-                drawText(rightText, 
-                        font: secondLineFont, 
-                        color: .white, 
-                        at: CGPoint(x: effectiveRect.maxX - padding - rightSize.width, y: secondLineY), 
-                        in: context)
-            }
-        }
-        
-        context.restoreGState()
-    }
     
-    private func drawText(_ text: String, font: UIFont, color: UIColor, at point: CGPoint, in context: CGContext) {
-        // 先绘制黑色描边
-        let strokeAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: UIColor.black,
-            .strokeColor: UIColor.black,
-            .strokeWidth: 3.0  // 正值表示只绘制描边
-        ]
-        
-        let strokeString = NSAttributedString(string: text, attributes: strokeAttributes)
-        let textRect = CGRect(x: point.x, y: point.y, width: 1000, height: font.lineHeight)
-        strokeString.draw(in: textRect)
-        
-        // 再绘制白色文字
-        let fillAttributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: color
-        ]
-        
-        let fillString = NSAttributedString(string: text, attributes: fillAttributes)
-        fillString.draw(in: textRect)
-    }
     
     private func formatShutterSpeed(_ speed: Double) -> String {
         if speed >= 1.0 {
@@ -436,12 +193,8 @@ class WatermarkService {
             totalHeight -= lineSpacing // 移除最后一个间距
         }
         
-        // 计算起始Y位置
-        let startY: CGFloat
-        switch settings.position {
-        case .bottomLeft, .bottomRight, .bottomCenter:
-            startY = effectiveRect.maxY - bottomPadding - totalHeight
-        }
+        // 🎨 计算起始Y位置 - 统一使用底部对齐，位置差异通过X坐标体现
+        let startY = effectiveRect.maxY - bottomPadding - totalHeight
         
         // 计算X位置
         let centerX = effectiveRect.midX
@@ -461,13 +214,14 @@ class WatermarkService {
                 let logoAspectRatio = logoImage.size.width / logoImage.size.height
                 let logoWidth = logoHeight * logoAspectRatio // 按比例计算宽度
                 
+                // 🎨 使用新的Logo位置设置
                 let logoX: CGFloat
-                switch settings.position {
-                case .bottomLeft:
+                switch settings.logoPosition {
+                case .left:
                     logoX = leftX
-                case .bottomRight:
+                case .right:
                     logoX = rightX - logoWidth // 使用实际计算的宽度
-                case .bottomCenter:
+                case .center:
                     logoX = centerX - logoWidth / 2 // 使用实际计算的宽度
                 }
                 
@@ -493,13 +247,14 @@ class WatermarkService {
             let font = content == watermarkContent.first ? titleFont : lineFont
             let textSize = content.size(withAttributes: [.font: font])
             
+            // 🎨 使用新的信息位置设置
             let textX: CGFloat
-            switch settings.position {
-            case .bottomLeft:
+            switch settings.infoPosition {
+            case .left:
                 textX = leftX
-            case .bottomRight:
+            case .right:
                 textX = rightX - textSize.width
-            case .bottomCenter:
+            case .center:
                 textX = centerX - textSize.width / 2
             }
             
@@ -556,14 +311,14 @@ class WatermarkService {
             let font = content == watermarkContent.first ? titleFont : lineFont
             let textSize = content.size(withAttributes: [.font: font])
             
-            // 🔧 修复：根据位置设置计算X坐标
+            // 🎨 使用新的信息位置设置
             let textX: CGFloat
-            switch settings.position {
-            case .bottomLeft:
+            switch settings.infoPosition {
+            case .left:
                 textX = leftX
-            case .bottomRight:
+            case .right:
                 textX = rightX - textSize.width
-            case .bottomCenter:
+            case .center:
                 textX = centerX - textSize.width / 2
             }
             
