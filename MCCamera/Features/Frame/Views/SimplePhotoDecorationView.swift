@@ -98,10 +98,14 @@ struct SimplePhotoDecorationView: View {
                         set: { newValue in
                             if newValue {
                                 // 设置为第一个可用的Logo（除了"无"）
-                                frameSettings.selectedDynamicLogo = dynamicLogoManager.availableLogos.first { $0.imageName != "none" }
+                                let firstAvailableLogo = dynamicLogoManager.availableLogos.first { $0.imageName != "none" && $0.isAvailable }
+                                frameSettings.selectedDynamicLogo = firstAvailableLogo
+                                print("🏷️ UI Toggle ON - 选择Logo: \(firstAvailableLogo?.debugDescription ?? "nil")")
                             } else {
                                 // 设置为"无"
-                                frameSettings.selectedDynamicLogo = dynamicLogoManager.availableLogos.first { $0.imageName == "none" }
+                                let noneLogo = dynamicLogoManager.availableLogos.first { $0.imageName == "none" }
+                                frameSettings.selectedDynamicLogo = noneLogo
+                                print("🏷️ UI Toggle OFF - 选择Logo: \(noneLogo?.debugDescription ?? "nil")")
                             }
                         }
                     ))
@@ -111,7 +115,7 @@ struct SimplePhotoDecorationView: View {
                 if frameSettings.selectedDynamicLogo != nil && frameSettings.selectedDynamicLogo?.imageName != "none" {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 15) {
-                            ForEach(dynamicLogoManager.availableLogos, id: \.id) { logo in
+                            ForEach(dynamicLogoManager.availableLogos.filter { $0.imageName != "none" && $0.isAvailable }, id: \.id) { logo in
                                 dynamicLogoButton(logo)
                             }
                         }
@@ -120,8 +124,8 @@ struct SimplePhotoDecorationView: View {
                 }
             }
             
-            // 文字设置（大师相框模式下禁用）
-            if frameSettings.selectedFrame != .masterSeries {
+            // 文字设置（大师相框模式和宝丽来模式下禁用）
+            if frameSettings.selectedFrame != .masterSeries && frameSettings.selectedFrame != .polaroid {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("文字")
@@ -132,7 +136,17 @@ struct SimplePhotoDecorationView: View {
                         
                         Toggle("", isOn: Binding(
                             get: { !frameSettings.customText.isEmpty },
-                            set: { if !$0 { frameSettings.customText = "" } }
+                            set: { newValue in
+                                if newValue {
+                                    // 打开文字开关时，设置默认文字
+                                    if frameSettings.customText.isEmpty {
+                                        frameSettings.customText = "PHOTO by Mr.C"
+                                    }
+                                } else {
+                                    // 关闭文字开关时，清空文字
+                                    frameSettings.customText = ""
+                                }
+                            }
                         ))
                         .labelsHidden()
                     }
@@ -145,7 +159,7 @@ struct SimplePhotoDecorationView: View {
                             .foregroundColor(.white)
                     }
                 }
-            } else {
+            } else if frameSettings.selectedFrame == .masterSeries {
                 // 大师相框模式的说明
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -165,6 +179,30 @@ struct SimplePhotoDecorationView: View {
                     }
                     
                     Text("大师相框模式使用专属背景，不支持自定义文字")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray.opacity(0.7))
+                        .italic()
+                }
+            } else if frameSettings.selectedFrame == .polaroid {
+                // 🔧 新增：宝丽来相框模式的说明
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("文字")
+                            .font(.system(size: 16))
+                            .foregroundColor(.gray.opacity(0.6))
+                        
+                        Spacer()
+                        
+                        Text("宝丽来相框")
+                            .font(.system(size: 12))
+                            .foregroundColor(.blue.opacity(0.8))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.2))
+                            .cornerRadius(4)
+                    }
+                    
+                    Text("宝丽来相框使用经典白框设计，不支持自定义文字")
                         .font(.system(size: 12))
                         .foregroundColor(.gray.opacity(0.7))
                         .italic()
@@ -326,6 +364,7 @@ struct SimplePhotoDecorationView: View {
     private func dynamicLogoButton(_ logo: DynamicLogo) -> some View {
         Button(action: {
             frameSettings.selectedDynamicLogo = logo
+            print("🏷️ UI Button - 选择Logo: \(logo.debugDescription)")
         }) {
             // Logo图像容器，添加灰色背景以便黑色Logo可见
             ZStack {

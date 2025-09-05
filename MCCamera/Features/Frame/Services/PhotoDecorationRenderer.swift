@@ -92,9 +92,9 @@ class PhotoDecorationRenderer {
             
             // 🐛 修复：根据相框类型决定是否需要特殊处理
             if frameType == .polaroid {
-                // 宝丽来相框需要特殊处理：创建更大的画布
+                // 🔧 修复：宝丽来相框需要特殊处理：创建更大的画布，增加底部高度
                 let borderWidth: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.04 : 0.05)
-                let bottomBorderHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.12 : 0.15)
+                let bottomBorderHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.18 : 0.22)  // 🔧 增加底部高度
                 let frameSize = CGSize(
                     width: renderImage.size.width + borderWidth * 2,
                     height: renderImage.size.height + borderWidth + bottomBorderHeight
@@ -584,9 +584,9 @@ class PhotoDecorationRenderer {
         isLandscape: Bool
     ) {
         autoreleasepool {
-            // 计算宝丽来相框的尺寸和位置 - 横屏适配
+            // 🔧 修复：增加宝丽来相框底部高度以适应更多内容
             let borderWidth: CGFloat = min(image.size.width, image.size.height) * (isLandscape ? 0.04 : 0.05)
-            let bottomBorderHeight: CGFloat = min(image.size.width, image.size.height) * (isLandscape ? 0.12 : 0.15)
+            let bottomBorderHeight: CGFloat = min(image.size.width, image.size.height) * (isLandscape ? 0.18 : 0.22)  // 从0.12/0.15增加到0.18/0.22
             
             // 绘制白色背景框（整个相框的背景）
             let fullRect = CGRect(x: 0, y: 0, width: frameSize.width, height: frameSize.height)
@@ -618,9 +618,9 @@ class PhotoDecorationRenderer {
             var mainTextSize = CGSize.zero
             var infoTextSize = CGSize.zero
             
-            // 计算主文字尺寸 - 横屏适配
+            // 🔧 修复：减小主文字字体大小
             if !customText.isEmpty {
-                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.4 : 0.35), weight: .regular)
+                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.25 : 0.22), weight: .regular)  // 从0.4/0.35减小到0.25/0.22
                 let mainAttributes: [NSAttributedString.Key: Any] = [
                     .font: mainFont,
                     .foregroundColor: UIColor.black.withAlphaComponent(0.6)
@@ -661,10 +661,10 @@ class PhotoDecorationRenderer {
                 
                 if !infoLine.isEmpty {
                     infoText = infoLine.joined(separator: " | ")
-                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.3 : 0.25), weight: .light)
+                    let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.15 : 0.13), weight: .light)  // 🔧 修复：继续减小字体
                     let infoAttributes: [NSAttributedString.Key: Any] = [
                         .font: infoFont,
-                        .foregroundColor: UIColor.black.withAlphaComponent(0.4)
+                        .foregroundColor: UIColor.black  // 🔧 修复：使用纯黑色
                     ]
                     infoTextSize = infoText.size(withAttributes: infoAttributes)
                     totalTextHeight += infoTextSize.height
@@ -672,21 +672,37 @@ class PhotoDecorationRenderer {
                 }
             }
             
-            // 计算文字块的起始Y位置（在底部边框中垂直居中）
-            let textBlockStartY = frameSize.height - bottomBorderHeight + (bottomBorderHeight - totalTextHeight) / 2
-            var currentY = textBlockStartY
+            // 🔧 重新设计布局：Logo和信息整体垂直居中于底部白框，Logo和信息间距8px
+            var currentY: CGFloat
+            var logoY: CGFloat?
+            let spacingBetweenLogoAndInfo: CGFloat = 8  // 🔧 固定8px间距
             
-            // 主要文字显示 - 右对齐或居中（取决于是否有logo）
+            if hasLogo {
+                // 🔧 有Logo时：计算Logo和信息的总高度，然后整体垂直居中
+                let logoHeight = bottomBorderHeight * 0.25  // Logo固定高度
+                let totalContentHeight = logoHeight + spacingBetweenLogoAndInfo + totalTextHeight
+                
+                // 整体内容在底部白框中垂直居中
+                let contentStartY = frameSize.height - bottomBorderHeight + (bottomBorderHeight - totalContentHeight) / 2
+                
+                logoY = contentStartY  // Logo在顶部
+                currentY = contentStartY + logoHeight + spacingBetweenLogoAndInfo  // 信息在Logo下方，间距8px
+            } else {
+                // 无Logo时：信息在整个底部区域垂直居中
+                currentY = frameSize.height - bottomBorderHeight + (bottomBorderHeight - totalTextHeight) / 2
+            }
+            
+            // 🔧 宝丽来模式不显示主要文字，直接跳过
+            // 主要文字显示 - 始终居中布局  
             if !customText.isEmpty {
-                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.4 : 0.35), weight: .regular)
+                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.25 : 0.22), weight: .regular)  // 🔧 修复：减小主文字字体
                 let mainAttributes: [NSAttributedString.Key: Any] = [
                     .font: mainFont,
                     .foregroundColor: UIColor.black.withAlphaComponent(0.6)
                 ]
                 
-                let rightMargin: CGFloat = borderWidth
                 let mainRect = CGRect(
-                    x: hasLogo ? (frameSize.width - rightMargin - mainTextSize.width) : (frameSize.width / 2 - mainTextSize.width / 2),
+                    x: frameSize.width / 2 - mainTextSize.width / 2,  // 🔧 修复：始终水平居中
                     y: currentY,
                     width: mainTextSize.width,
                     height: mainTextSize.height
@@ -696,17 +712,16 @@ class PhotoDecorationRenderer {
                 currentY += mainTextSize.height + (infoText.isEmpty ? 0 : bottomBorderHeight * 0.1)
             }
             
-            // 绘制信息文字 - 右对齐或居中（取决于是否有logo）
+            // 绘制信息文字 - 始终居中布局
             if !infoText.isEmpty {
-                let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.3 : 0.25), weight: .light)
+                let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.15 : 0.13), weight: .light)  // 🔧 修复：继续减小字体
                 let infoAttributes: [NSAttributedString.Key: Any] = [
                     .font: infoFont,
-                    .foregroundColor: UIColor.black.withAlphaComponent(0.4)
+                    .foregroundColor: UIColor.black  // 🔧 修复：使用纯黑色，去掉透明度
                 ]
                 
-                let rightMargin: CGFloat = borderWidth
                 let infoRect = CGRect(
-                    x: hasLogo ? (frameSize.width - rightMargin - infoTextSize.width) : (frameSize.width / 2 - infoTextSize.width / 2),
+                    x: frameSize.width / 2 - infoTextSize.width / 2,  // 🔧 修复：始终水平居中
                     y: currentY,
                     width: infoTextSize.width,
                     height: infoTextSize.height
@@ -719,16 +734,16 @@ class PhotoDecorationRenderer {
             if let logoName = selectedLogo {
                 print("🏷️ 宝丽来相框 - 开始绘制Logo: \(logoName)")
                 autoreleasepool {
-                    let logoMaxHeight = bottomBorderHeight * 0.4
+                    let logoMaxHeight = bottomBorderHeight * 0.25  // 🔧 修复：减小Logo高度，从0.4调整到0.25
                     if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                        // 保持Logo真实宽高比
+                        // 🔧 修复：Logo高度固定，宽度自适应，保持图片比例
                         let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                        let logoHeight = min(logoImage.size.height, logoMaxHeight)
-                        let logoWidth = logoHeight * logoAspectRatio
+                        let logoHeight = logoMaxHeight  // 使用固定高度
+                        let logoWidth = logoHeight * logoAspectRatio  // 宽度自适应保持比例
                         
                         let logoRect = CGRect(
-                            x: borderWidth,
-                            y: frameSize.height - bottomBorderHeight / 2 - logoHeight / 2,
+                            x: frameSize.width / 2 - logoWidth / 2,  // 🔧 修复：Logo水平居中
+                            y: logoY ?? (frameSize.height - bottomBorderHeight / 2 - logoHeight / 2),  // 🔧 使用计算的Y坐标
                             width: logoWidth,
                             height: logoHeight
                         )

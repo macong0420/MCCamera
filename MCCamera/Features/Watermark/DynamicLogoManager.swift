@@ -2,7 +2,7 @@ import UIKit
 import SwiftUI
 
 // 动态Logo项目
-struct DynamicLogo: Identifiable, Hashable {
+struct DynamicLogo: Identifiable, Hashable, CustomDebugStringConvertible {
     let id = UUID()
     let imageName: String
     let displayName: String
@@ -12,6 +12,10 @@ struct DynamicLogo: Identifiable, Hashable {
         self.imageName = imageName
         self.displayName = displayName ?? DynamicLogoManager.generateDisplayName(from: imageName)
         self.isAvailable = UIImage(named: imageName) != nil
+    }
+    
+    var debugDescription: String {
+        return "DynamicLogo(imageName: '\(imageName)', displayName: '\(displayName)', isAvailable: \(isAvailable))"
     }
 }
 

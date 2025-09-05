@@ -22,7 +22,7 @@ class PhotoDecorationService {
     func applyFrameToPhoto(_ imageData: Data, withWatermarkInfo watermarkInfo: CameraCaptureSettings?, aspectRatio: AspectRatio?) -> Data {
         // 检查是否需要渲染任何内容
         let hasFrame = frameSettings.selectedFrame != .none
-        let hasLogo = frameSettings.selectedLogo != nil
+        let hasLogo = (frameSettings.selectedDynamicLogo != nil && frameSettings.selectedDynamicLogo?.imageName != "none") || frameSettings.selectedLogo != nil
         let hasText = !frameSettings.customText.isEmpty
         let hasInfo = frameSettings.showDate || frameSettings.showDeviceModel || 
                      frameSettings.showFocalLength || frameSettings.showShutterSpeed || 
@@ -50,8 +50,27 @@ class PhotoDecorationService {
             let metadata = getMetadataFromImageData(imageData)
             
             // 根据相框类型和设置渲染装饰
-            // 大师相框模式下不使用自定义文字
-            let customTextToUse = frameSettings.selectedFrame == .masterSeries ? "" : frameSettings.customText
+            // 🔧 修复：大师相框模式和宝丽来模式下不使用自定义文字
+            let customTextToUse = (frameSettings.selectedFrame == .masterSeries || frameSettings.selectedFrame == .polaroid) ? "" : frameSettings.customText
+            
+            // 🔧 修复：获取正确的Logo名称 - 优先使用新的DynamicLogo系统
+            let logoNameToUse: String?
+            if let dynamicLogo = frameSettings.selectedDynamicLogo, dynamicLogo.imageName != "none" {
+                logoNameToUse = dynamicLogo.imageName
+                print("🏷️ 🎯 PhotoDecorationService: 使用DynamicLogo: '\(dynamicLogo.imageName)' (显示名: \(dynamicLogo.displayName))")
+            } else if let legacyLogo = frameSettings.selectedLogo {
+                logoNameToUse = legacyLogo
+                print("🏷️ 🎯 PhotoDecorationService: 使用传统Logo: '\(legacyLogo)'")
+            } else {
+                logoNameToUse = nil
+                print("🏷️ 🎯 PhotoDecorationService: 未设置Logo (selectedDynamicLogo=\(frameSettings.selectedDynamicLogo?.imageName ?? "nil"), selectedLogo=\(frameSettings.selectedLogo ?? "nil"))")
+            }
+            
+            print("🎯 PhotoDecorationService Debug:")
+            print("  - 相框类型: \(frameSettings.selectedFrame)")
+            print("  - Logo名称: '\(logoNameToUse ?? "nil")'")
+            print("  - 自定义文字: '\(customTextToUse)'")
+            print("  - DynamicLogo详情: \(frameSettings.selectedDynamicLogo?.debugDescription ?? "nil")")
             
             let decoratedImage = renderer.renderDecoration(
                 on: image,
@@ -62,7 +81,7 @@ class PhotoDecorationService {
                 showExif: frameSettings.showExif,
                 showExifParams: frameSettings.showExifParams,
                 showExifDate: frameSettings.showExifDate,
-                selectedLogo: frameSettings.selectedLogo,
+                selectedLogo: logoNameToUse,
                 showSignature: frameSettings.showSignature,
                 metadata: metadata,
                 watermarkInfo: watermarkInfo,
