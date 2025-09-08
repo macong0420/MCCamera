@@ -204,8 +204,8 @@ class PhotoDecorationRenderer {
                         UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
                         watermarkedImage?.draw(at: CGPoint.zero)
                     } else {
-                        // 无相框且未启用水印：使用原有的直接水印逻辑
-                        renderDirectWatermark(
+                        // 无相框且未启用水印：使用支持位置设置的直接水印逻辑
+                        renderDirectWatermarkWithPosition(
                             imageSize: renderImage.size,
                             customText: customText,
                             selectedLogo: selectedLogo,
@@ -916,7 +916,250 @@ class PhotoDecorationRenderer {
         bottomLayoutImage.draw(in: bottomRect)
     }
     
-    // 渲染直接水印（无相框时使用）
+    // 渲染支持位置设置的直接水印（无相框时使用）
+    private func renderDirectWatermarkWithPosition(
+        imageSize: CGSize,
+        customText: String,
+        selectedLogo: String?,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?
+    ) {
+        // 检查是否有任何内容需要渲染
+        let hasLogo = selectedLogo != nil
+        let hasText = !customText.isEmpty
+        let hasWatermarkInfo = watermarkInfo != nil && frameSettings != nil
+        
+        // 如果没有任何内容需要显示，则不渲染
+        guard hasLogo || hasText || hasWatermarkInfo else {
+            return
+        }
+        
+        autoreleasepool {
+            // 收集信息文字
+            var infoComponents: [String] = []
+            
+            if let watermark = watermarkInfo, let settings = frameSettings {
+                // 设备信息
+                if settings.showDeviceModel {
+                    infoComponents.append(DeviceInfoHelper.getDeviceModel())
+                }
+                
+                if settings.showFocalLength {
+                    infoComponents.append("\(Int(watermark.focalLength))mm")
+                }
+                
+                // 拍摄参数
+                if settings.showShutterSpeed {
+                    infoComponents.append(formatShutterSpeed(watermark.shutterSpeed))
+                }
+                
+                if settings.showISO {
+                    infoComponents.append("ISO\(Int(watermark.iso))")
+                }
+                
+                // 光圈信息
+                if settings.showAperture {
+                    if let exif = metadata["exif"] as? [String: Any],
+                       let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
+                        infoComponents.append("f/\(aperture)")
+                    } else {
+                        infoComponents.append("f/2.8")  // 默认值
+                    }
+                }
+                
+                // 日期信息
+                if settings.showDate {
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateFormat = "yyyy.MM.dd"
+                    infoComponents.append(dateFormatter.string(from: Date()))
+                }
+            }
+            
+            let infoText = infoComponents.joined(separator: " | ")
+            
+            // 获取logo图像
+            var logoImage: UIImage?
+            if let logoName = selectedLogo {
+                let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.05
+                logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight)
+            }
+            
+            // 获取位置设置
+            let logoPosition: PositionAlignment = frameSettings?.logoPosition ?? .left
+            let infoPosition: PositionAlignment = frameSettings?.infoPosition ?? .right
+            
+            // 使用类似宝丽来的布局逻辑来渲染
+            renderDirectWatermarkLayout(
+                imageSize: imageSize,
+                customText: customText,
+                infoText: infoText,
+                logoImage: logoImage,
+                logoPosition: logoPosition,
+                infoPosition: infoPosition
+            )
+        }
+    }
+    
+    // 渲染无相框的布局
+    private func renderDirectWatermarkLayout(
+        imageSize: CGSize,
+        customText: String,
+        infoText: String,
+        logoImage: UIImage?,
+        logoPosition: PositionAlignment,
+        infoPosition: PositionAlignment
+    ) {
+        let margin: CGFloat = min(imageSize.width, imageSize.height) * 0.03
+        let fontSize: CGFloat = min(imageSize.width, imageSize.height) * 0.025
+        
+        // 计算内容尺寸
+        var logoSize = CGSize.zero
+        if let logo = logoImage {
+            let logoAspectRatio = logo.size.width / logo.size.height
+            let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.05
+            let maxLogoWidth: CGFloat = 88 // 最大宽度限制
+            
+            let baseLogoWidth = logoMaxHeight * logoAspectRatio
+            let logoWidth = min(baseLogoWidth, maxLogoWidth)
+            let logoHeight = logoWidth / logoAspectRatio
+            logoSize = CGSize(width: logoWidth, height: logoHeight)
+        }
+        
+        // 准备文字
+        let textFont = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .font: textFont,
+            .foregroundColor: UIColor.white
+        ]
+        
+        let infoFont = UIFont.systemFont(ofSize: fontSize * 0.8, weight: .light)
+        let infoAttributes: [NSAttributedString.Key: Any] = [
+            .font: infoFont,
+            .foregroundColor: UIColor.white.withAlphaComponent(0.8)
+        ]
+        
+        let textSize = !customText.isEmpty ? customText.size(withAttributes: textAttributes) : CGSize.zero
+        let infoSize = !infoText.isEmpty ? infoText.size(withAttributes: infoAttributes) : CGSize.zero
+        
+        // 检查是否在同一位置
+        let samePosition = (logoPosition == infoPosition)
+        
+        if samePosition {
+            // 情况1: logo和信息在同一位置 - 垂直排列
+            var contentHeight: CGFloat = 0
+            var contentWidth: CGFloat = 0
+            
+            if logoImage != nil {
+                contentHeight += logoSize.height
+                contentWidth = max(contentWidth, logoSize.width)
+            }
+            
+            if !customText.isEmpty {
+                if logoImage != nil { contentHeight += 8 } // 间距
+                contentHeight += textSize.height
+                contentWidth = max(contentWidth, textSize.width)
+            }
+            
+            if !infoText.isEmpty {
+                if logoImage != nil || !customText.isEmpty { contentHeight += 6 } // 间距
+                contentHeight += infoSize.height
+                contentWidth = max(contentWidth, infoSize.width)
+            }
+            
+            // 计算起始位置
+            let startX = calculateXPosition(
+                for: logoPosition,
+                containerWidth: imageSize.width,
+                contentWidth: contentWidth,
+                leftMargin: margin,
+                rightMargin: margin
+            )
+            let startY = imageSize.height - margin - contentHeight
+            
+            var currentY = startY
+            
+            // 渲染logo
+            if let logo = logoImage {
+                let logoX = startX + (contentWidth - logoSize.width) / 2 // 内容内居中
+                let logoRect = CGRect(x: logoX, y: currentY, width: logoSize.width, height: logoSize.height)
+                logo.draw(in: logoRect)
+                currentY += logoSize.height + 8
+            }
+            
+            // 渲染自定义文字
+            if !customText.isEmpty {
+                let textX = startX + (contentWidth - textSize.width) / 2 // 内容内居中
+                let textRect = CGRect(x: textX, y: currentY, width: textSize.width, height: textSize.height)
+                customText.draw(in: textRect, withAttributes: textAttributes)
+                currentY += textSize.height + 6
+            }
+            
+            // 渲染信息文字
+            if !infoText.isEmpty {
+                let infoX = startX + (contentWidth - infoSize.width) / 2 // 内容内居中
+                let infoRect = CGRect(x: infoX, y: currentY, width: infoSize.width, height: infoSize.height)
+                infoText.draw(in: infoRect, withAttributes: infoAttributes)
+            }
+        } else {
+            // 情况2: logo和信息在不同位置 - 分别定位
+            let contentHeight = max(logoSize.height, max(textSize.height, infoSize.height))
+            let baseY = imageSize.height - margin - contentHeight
+            
+            // 渲染logo
+            if let logo = logoImage {
+                let logoX = calculateXPosition(
+                    for: logoPosition,
+                    containerWidth: imageSize.width,
+                    contentWidth: logoSize.width,
+                    leftMargin: margin,
+                    rightMargin: margin
+                )
+                let logoY = baseY + (contentHeight - logoSize.height) / 2 // 垂直居中
+                let logoRect = CGRect(x: logoX, y: logoY, width: logoSize.width, height: logoSize.height)
+                logo.draw(in: logoRect)
+            }
+            
+            // 渲染信息内容（自定义文字 + 信息文字垂直排列）
+            if !customText.isEmpty || !infoText.isEmpty {
+                var textContentHeight: CGFloat = 0
+                if !customText.isEmpty { textContentHeight += textSize.height }
+                if !infoText.isEmpty {
+                    if !customText.isEmpty { textContentHeight += 4 } // 间距
+                    textContentHeight += infoSize.height
+                }
+                
+                let maxTextWidth = max(textSize.width, infoSize.width)
+                let textX = calculateXPosition(
+                    for: infoPosition,
+                    containerWidth: imageSize.width,
+                    contentWidth: maxTextWidth,
+                    leftMargin: margin,
+                    rightMargin: margin
+                )
+                
+                let textStartY = baseY + (contentHeight - textContentHeight) / 2
+                var currentTextY = textStartY
+                
+                // 渲染自定义文字
+                if !customText.isEmpty {
+                    let customTextX = textX + (maxTextWidth - textSize.width) / 2 // 内容内居中
+                    let textRect = CGRect(x: customTextX, y: currentTextY, width: textSize.width, height: textSize.height)
+                    customText.draw(in: textRect, withAttributes: textAttributes)
+                    currentTextY += textSize.height + 4
+                }
+                
+                // 渲染信息文字
+                if !infoText.isEmpty {
+                    let infoTextX = textX + (maxTextWidth - infoSize.width) / 2 // 内容内居中
+                    let infoRect = CGRect(x: infoTextX, y: currentTextY, width: infoSize.width, height: infoSize.height)
+                    infoText.draw(in: infoRect, withAttributes: infoAttributes)
+                }
+            }
+        }
+    }
+    
+    // 渲染直接水印（无相框时使用，旧版本保留兼容性）
     private func renderDirectWatermark(
         imageSize: CGSize,
         customText: String,
