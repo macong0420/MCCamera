@@ -39,8 +39,8 @@ struct PolaroidBottomLayoutView: View {
     @ViewBuilder
     private var contentLayoutView: some View {
         if isSamePosition(logoPosition: logoPosition, infoPosition: infoPosition) {
-            // 🎯 情况1: logo和信息在同一位置 - 垂直排列（边距与边框宽度一致）
-            VStack(spacing: 4) {
+            // 🎯 情况1: logo和信息在同一位置 - 垂直排列，都按照设置的对齐方式排列
+            VStack(alignment: vStackAlignmentForPosition(logoPosition), spacing: 4) {
                 if logoImage != nil {
                     logoView
                 }
@@ -94,6 +94,15 @@ struct PolaroidBottomLayoutView: View {
         }
     }
     
+    // 🔧 新增：VStack内容对齐辅助方法
+    private func vStackAlignmentForPosition(_ position: PolaroidLogoPosition) -> HorizontalAlignment {
+        switch position {
+        case .left: return .leading
+        case .center: return .center
+        case .right: return .trailing
+        }
+    }
+    
     // 🔧 新增：检查是否有文字内容
     private var hasTextContent: Bool {
         return !customText.isEmpty || !infoText.isEmpty
@@ -117,8 +126,6 @@ struct PolaroidBottomLayoutView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: 488, maxHeight: borderHeight * 0.25) // 🔧 修复：488px最大宽度，25%最大高度
-                .background(Color.red.opacity(0.8)) // 红色背景
-                .padding(4) // 背景padding
         }
     }
     

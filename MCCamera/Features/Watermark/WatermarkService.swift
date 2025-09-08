@@ -228,23 +228,10 @@ class WatermarkService {
                     logoX = centerX - logoWidth / 2 // 使用实际计算的宽度
                 }
                 
-                // 🎨 添加红色背景色，留出一些padding
-                let padding: CGFloat = 4
-                let backgroundRect = CGRect(
-                    x: logoX - padding,
-                    y: logoY - padding,
-                    width: logoWidth + 2 * padding,
-                    height: logoHeight + 2 * padding
-                )
-                
-                // 绘制红色背景
-                context.setFillColor(UIColor.red.cgColor)
-                context.fill(backgroundRect)
-                
                 let logoRect = CGRect(
                     x: logoX,
                     y: logoY,
-                    width: logoWidth, // 使用按比例计算的宽度（88px限制）
+                    width: logoWidth, // 使用按比例计算的宽度（488px限制）
                     height: logoHeight // 使用按比例计算的高度
                 )
                 logoImage.draw(in: logoRect)
