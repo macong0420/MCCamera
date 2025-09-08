@@ -38,7 +38,8 @@ struct PolaroidBottomLayoutView: View {
     // 🔧 新增：智能内容布局
     @ViewBuilder
     private var contentLayoutView: some View {
-        if isSamePosition(logoPosition: logoPosition, infoPosition: infoPosition) {
+        let samePos = isSamePosition(logoPosition: logoPosition, infoPosition: infoPosition)
+        if samePos {
             // 🎯 情况1: logo和信息在同一位置 - 垂直排列，都按照设置的对齐方式排列
             VStack(alignment: vStackAlignmentForPosition(logoPosition), spacing: 4) {
                 if logoImage != nil {

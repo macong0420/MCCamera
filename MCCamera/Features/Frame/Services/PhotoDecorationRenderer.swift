@@ -159,55 +159,33 @@ class PhotoDecorationRenderer {
                 // 根据相框类型应用不同的装饰
                 switch frameType {
                 case .bottomText:
-                    // 🔧 修复：底部文字相框也检查是否启用水印功能
-                    if let settings = frameSettings, settings.watermarkEnabled, let watermarkInfo = watermarkInfo {
-                        print("🎨 底部文字相框模式：调用WatermarkService处理专业垂直水印")
-                        // 先获取当前的图像
-                        guard let currentImage = UIGraphicsGetImageFromCurrentImageContext() else { 
-                            // 如果获取失败，使用原有逻辑
-                            renderBottomTextFrame(
-                                imageSize: renderImage.size,
-                                customText: customText,
-                                showDate: showDate,
-                                showLocation: showLocation,
-                                showExif: showExif,
-                                showExifParams: showExifParams,
-                                showExifDate: showExifDate,
-                                selectedLogo: selectedLogo,
-                                showSignature: showSignature,
-                                metadata: metadata,
-                                watermarkInfo: watermarkInfo,
-                                frameSettings: frameSettings
-                            )
-                            break
-                        }
-                        
-                        // 结束当前的绘制上下文
-                        UIGraphicsEndImageContext()
-                        
-                        // 调用WatermarkService来处理水印
-                        let watermarkedImage = WatermarkService.shared.addWatermark(to: currentImage, with: watermarkInfo, aspectRatio: nil)
-                        
-                        // 重新开始绘制上下文并绘制加了水印的图像
-                        UIGraphicsBeginImageContextWithOptions(renderImage.size, false, renderImage.scale)
-                        watermarkedImage?.draw(at: CGPoint.zero)
-                    } else {
-                        // 底部文字相框且未启用水印：使用原有逻辑
-                        renderBottomTextFrame(
-                            imageSize: renderImage.size,
-                            customText: customText,
-                            showDate: showDate,
-                            showLocation: showLocation,
-                            showExif: showExif,
-                            showExifParams: showExifParams,
-                            showExifDate: showExifDate,
-                            selectedLogo: selectedLogo,
-                            showSignature: showSignature,
-                            metadata: metadata,
-                            watermarkInfo: watermarkInfo,
-                            frameSettings: frameSettings
-                        )
-                    }
+                    // 🔧 修复：底部文字相框创建带底部白色边框的效果，类似宝丽来
+                    // 结束当前的绘制上下文
+                    UIGraphicsEndImageContext()
+                    
+                    // 创建带底部边框的相框
+                    let bottomBorderHeight: CGFloat = min(renderImage.size.width, renderImage.size.height) * (isLandscape ? 0.15 : 0.18)
+                    let frameSize = CGSize(
+                        width: renderImage.size.width,  // 左右不加边框
+                        height: renderImage.size.height + bottomBorderHeight  // 只增加底部高度
+                    )
+                    
+                    // 创建新的绘制上下文
+                    UIGraphicsBeginImageContextWithOptions(frameSize, false, renderImage.scale)
+                    
+                    // 🔧 修复：底部边框模式下不在照片上渲染水印，只在底部边框显示信息
+                    // 渲染带底部边框的相框（不在照片上添加水印）
+                    renderBottomTextFrameWithBorder(
+                        image: renderImage,  // 使用原始图片，不添加水印
+                        frameSize: frameSize,
+                        bottomBorderHeight: bottomBorderHeight,
+                        customText: customText,
+                        selectedLogo: selectedLogo,
+                        metadata: metadata,
+                        watermarkInfo: watermarkInfo,
+                        frameSettings: frameSettings,
+                        isLandscape: isLandscape
+                    )
                     
                 case .none:
                     // 无相框：检查是否启用了水印功能，如果启用则使用WatermarkService
@@ -284,7 +262,154 @@ class PhotoDecorationRenderer {
         return logoImage
     }
     
-    // 渲染底部文字相框
+    // 渲染带底部边框的底部文字相框（类似宝丽来效果）
+    private func renderBottomTextFrameWithBorder(
+        image: UIImage,
+        frameSize: CGSize,
+        bottomBorderHeight: CGFloat,
+        customText: String,
+        selectedLogo: String?,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?,
+        isLandscape: Bool
+    ) {
+        autoreleasepool {
+            // 1. 绘制白色背景（整个相框区域）
+            let fullRect = CGRect(x: 0, y: 0, width: frameSize.width, height: frameSize.height)
+            UIColor.white.setFill()
+            UIRectFill(fullRect)
+            
+            // 2. 绘制原始照片到顶部区域
+            let photoRect = CGRect(
+                x: 0,
+                y: 0,
+                width: image.size.width,
+                height: image.size.height
+            )
+            image.draw(in: photoRect)
+            
+            // 3. 绘制底部白色边框区域的内容
+            let bottomRect = CGRect(
+                x: 0,
+                y: image.size.height,
+                width: frameSize.width,
+                height: bottomBorderHeight
+            )
+            
+            // 使用SwiftUI布局来渲染底部内容
+            renderBottomTextWithSwiftUI(
+                frameSize: frameSize,
+                bottomRect: bottomRect,
+                customText: customText,
+                selectedLogo: selectedLogo,
+                metadata: metadata,
+                watermarkInfo: watermarkInfo,
+                frameSettings: frameSettings,
+                isLandscape: isLandscape
+            )
+        }
+    }
+    
+    // 使用SwiftUI渲染底部文字区域
+    private func renderBottomTextWithSwiftUI(
+        frameSize: CGSize,
+        bottomRect: CGRect,
+        customText: String,
+        selectedLogo: String?,
+        metadata: [String: Any],
+        watermarkInfo: CameraCaptureSettings?,
+        frameSettings: FrameSettings?,
+        isLandscape: Bool
+    ) {
+        // 收集信息文字
+        var infoComponents: [String] = []
+        
+        if let watermark = watermarkInfo {
+            // 设备信息
+            if frameSettings?.showDeviceModel == true {
+                infoComponents.append(DeviceInfoHelper.getDeviceModel())
+            }
+            
+            if frameSettings?.showFocalLength == true {
+                infoComponents.append("\(Int(watermark.focalLength))mm")
+            }
+            
+            // 拍摄参数
+            if frameSettings?.showShutterSpeed == true {
+                let shutterDisplay = formatShutterSpeed(watermark.shutterSpeed)
+                infoComponents.append(shutterDisplay)
+            }
+            
+            if frameSettings?.showISO == true {
+                infoComponents.append("ISO\(Int(watermark.iso))")
+            }
+            
+            // 光圈信息
+            if frameSettings?.showAperture == true {
+                if let exif = metadata["exif"] as? [String: Any],
+                   let aperture = exif[kCGImagePropertyExifFNumber as String] as? NSNumber {
+                    infoComponents.append("f/\(aperture)")
+                } else {
+                    infoComponents.append("f/2.8")  // 默认值
+                }
+            }
+            
+            // 日期信息
+            if frameSettings?.showDate == true {
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy.MM.dd"
+                infoComponents.append(dateFormatter.string(from: Date()))
+            }
+        }
+        
+        let infoText = infoComponents.joined(separator: " | ")
+        
+        // 获取logo图像
+        var logoImage: UIImage?
+        if let logoName = selectedLogo {
+            let logoMaxHeight = bottomRect.height * 0.4
+            logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight)
+        }
+        
+        // 获取位置设置
+        let logoPosition: PolaroidLogoPosition = {
+            switch frameSettings?.logoPosition {
+            case .left: return .left
+            case .right: return .right
+            case .center, .none: return .center
+            }
+        }()
+        
+        let infoPosition: PolaroidInfoPosition = {
+            switch frameSettings?.infoPosition {
+            case .left: return .left
+            case .right: return .right
+            case .center, .none: return .center  // 🔧 修复：保持用户设置的居中对齐
+            }
+        }()
+        
+        // 创建SwiftUI视图
+        let layoutView = PolaroidBottomLayoutView(
+            frameSize: frameSize,
+            borderHeight: bottomRect.height,
+            logoImage: logoImage,
+            logoPosition: logoPosition,
+            infoPosition: infoPosition,
+            customText: customText,
+            infoText: infoText,
+            isLandscape: isLandscape
+        )
+        
+        // 转换为UIImage并绘制到底部区域
+        let bottomLayoutImage = layoutView.asUIImage(
+            size: CGSize(width: bottomRect.width, height: bottomRect.height)
+        )
+        
+        bottomLayoutImage.draw(in: bottomRect)
+    }
+    
+    // 渲染底部文字相框（旧版本，保留兼容性）
     private func renderBottomTextFrame(
         imageSize: CGSize,
         customText: String,
