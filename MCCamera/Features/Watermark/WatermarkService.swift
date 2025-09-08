@@ -209,10 +209,13 @@ class WatermarkService {
             let logoY = currentY
             
             if let logoImage = LogoManager.shared.loadLogo(settings.selectedLogo) {
-                // 🔧 修复：保持Logo的真实宽高比，固定高度，按比例调整宽度
-                let logoHeight = logoSize // 固定高度
+                // 🔧 修复：保持Logo的真实宽高比，88px最大宽度限制，按比例调整高度
                 let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                let logoWidth = logoHeight * logoAspectRatio // 按比例计算宽度
+                let maxLogoWidth: CGFloat = 488 // 最大宽度488px
+                
+                // 根据88px限制计算实际尺寸
+                let logoWidth = min(logoSize * logoAspectRatio, maxLogoWidth)
+                let logoHeight = logoWidth / logoAspectRatio
                 
                 // 🎨 使用新的Logo位置设置
                 let logoX: CGFloat
@@ -225,11 +228,24 @@ class WatermarkService {
                     logoX = centerX - logoWidth / 2 // 使用实际计算的宽度
                 }
                 
+                // 🎨 添加红色背景色，留出一些padding
+                let padding: CGFloat = 4
+                let backgroundRect = CGRect(
+                    x: logoX - padding,
+                    y: logoY - padding,
+                    width: logoWidth + 2 * padding,
+                    height: logoHeight + 2 * padding
+                )
+                
+                // 绘制红色背景
+                context.setFillColor(UIColor.red.cgColor)
+                context.fill(backgroundRect)
+                
                 let logoRect = CGRect(
                     x: logoX,
                     y: logoY,
-                    width: logoWidth, // 使用按比例计算的宽度
-                    height: logoHeight // 使用固定高度
+                    width: logoWidth, // 使用按比例计算的宽度（88px限制）
+                    height: logoHeight // 使用按比例计算的高度
                 )
                 logoImage.draw(in: logoRect)
                 

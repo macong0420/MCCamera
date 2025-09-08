@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Zeiss_logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Zeiss_logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

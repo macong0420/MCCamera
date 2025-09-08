@@ -384,10 +384,14 @@ class PhotoDecorationRenderer {
             autoreleasepool {
                 let logoMaxHeight = barHeight * 0.4
                 if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                    // 保持Logo真实宽高比
+                    // 保持Logo真实宽高比，88px最大宽度限制
                     let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                    let logoHeight = min(logoImage.size.height, logoMaxHeight)
-                    let logoWidth = logoHeight * logoAspectRatio
+                    let maxLogoWidth: CGFloat = 488 // 最大宽度488px
+                    
+                    // 根据88px限制和最大高度计算实际尺寸
+                    let baseLogoWidth = logoMaxHeight * logoAspectRatio
+                    let logoWidth = min(baseLogoWidth, maxLogoWidth)
+                    let logoHeight = logoWidth / logoAspectRatio
                     
                     print("🏷️ Logo尺寸: 原始=\(logoImage.size), 渲染=\(CGSize(width: logoWidth, height: logoHeight)), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
                     
@@ -400,6 +404,21 @@ class PhotoDecorationRenderer {
                         leftMargin: 20,  // 左边距
                         rightMargin: 20  // 右边距
                     )
+                    
+                    // 🎨 添加红色背景色，留出一些padding
+                    let padding: CGFloat = 4
+                    let backgroundRect = CGRect(
+                        x: logoX - padding,
+                        y: imageSize.height - barHeight / 2 - logoHeight / 2 - padding,
+                        width: logoWidth + 2 * padding,
+                        height: logoHeight + 2 * padding
+                    )
+                    
+                    // 绘制红色背景
+                    if let context = UIGraphicsGetCurrentContext() {
+                        context.setFillColor(UIColor.red.cgColor)
+                        context.fill(backgroundRect)
+                    }
                     
                     let logoRect = CGRect(
                         x: logoX,  // 🎨 使用动态计算的X坐标
@@ -712,115 +731,79 @@ class PhotoDecorationRenderer {
                 }
             }
             
-            // 🎨 动态位置布局：支持Logo和信息的独立位置控制
-            var currentY: CGFloat
-            var logoY: CGFloat?
-            let spacingBetweenLogoAndInfo: CGFloat = 8  // 🔧 固定8px间距
-            let borderMargin: CGFloat = borderWidth  // 边距
-            
-            // 获取位置设置（如果frameSettings可用）
-            let logoPosition = frameSettings?.logoPosition ?? .center
-            let infoPosition = frameSettings?.infoPosition ?? .center
-            
-            if hasLogo {
-                // 🎨 有Logo时：计算Logo和信息的总高度，然后整体垂直居中
-                let logoHeight = bottomBorderHeight * 0.25  // Logo固定高度
-                let totalContentHeight = logoHeight + spacingBetweenLogoAndInfo + totalTextHeight
-                
-                // 整体内容在底部白框中垂直居中
-                let contentStartY = frameSize.height - bottomBorderHeight + (bottomBorderHeight - totalContentHeight) / 2
-                
-                logoY = contentStartY  // Logo在顶部
-                currentY = contentStartY + logoHeight + spacingBetweenLogoAndInfo  // 信息在Logo下方，间距8px
-            } else {
-                // 无Logo时：信息在整个底部区域垂直居中
-                currentY = frameSize.height - bottomBorderHeight + (bottomBorderHeight - totalTextHeight) / 2
-            }
-            
-            // 🔧 宝丽来模式不显示主要文字，直接跳过
-            // 主要文字显示 - 始终居中布局  
-            if !customText.isEmpty {
-                let mainFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.25 : 0.22), weight: .regular)  // 🔧 修复：减小主文字字体
-                let mainAttributes: [NSAttributedString.Key: Any] = [
-                    .font: mainFont,
-                    .foregroundColor: UIColor.black.withAlphaComponent(0.6)
-                ]
-                
-                let mainRect = CGRect(
-                    x: frameSize.width / 2 - mainTextSize.width / 2,  // 🔧 修复：始终水平居中
-                    y: currentY,
-                    width: mainTextSize.width,
-                    height: mainTextSize.height
-                )
-                
-                customText.draw(in: mainRect, withAttributes: mainAttributes)
-                currentY += mainTextSize.height + (infoText.isEmpty ? 0 : bottomBorderHeight * 0.1)
-            }
-            
-            // 🎨 绘制信息文字 - 支持动态位置
-            if !infoText.isEmpty {
-                let infoFont = UIFont.systemFont(ofSize: bottomBorderHeight * (isLandscape ? 0.15 : 0.13), weight: .light)  // 🔧 修复：继续减小字体
-                let infoAttributes: [NSAttributedString.Key: Any] = [
-                    .font: infoFont,
-                    .foregroundColor: UIColor.black  // 🔧 修复：使用纯黑色，去掉透明度
-                ]
-                
-                // 🎨 根据infoPosition动态计算X坐标
-                let infoX = calculateXPosition(
-                    for: infoPosition,
-                    containerWidth: frameSize.width,
-                    contentWidth: infoTextSize.width,
-                    leftMargin: borderMargin,
-                    rightMargin: borderMargin
-                )
-                
-                let infoRect = CGRect(
-                    x: infoX,
-                    y: currentY,
-                    width: infoTextSize.width,
-                    height: infoTextSize.height
-                )
-                
-                infoText.draw(in: infoRect, withAttributes: infoAttributes)
-            }
-            
-            // 绘制Logo - 保持宽高比
-            if let logoName = selectedLogo {
-                print("🏷️ 宝丽来相框 - 开始绘制Logo: \(logoName)")
-                autoreleasepool {
-                    let logoMaxHeight = bottomBorderHeight * 0.25  // 🔧 修复：减小Logo高度，从0.4调整到0.25
-                    if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                        // 🔧 修复：Logo高度固定，宽度自适应，保持图片比例
-                        let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                        let logoHeight = logoMaxHeight  // 使用固定高度
-                        let logoWidth = logoHeight * logoAspectRatio  // 宽度自适应保持比例
-                        
-                        // 🎨 根据logoPosition动态计算X坐标
-                        let logoX = calculateXPosition(
-                            for: logoPosition,
-                            containerWidth: frameSize.width,
-                            contentWidth: logoWidth,
-                            leftMargin: borderMargin,
-                            rightMargin: borderMargin
-                        )
-                        
-                        let logoRect = CGRect(
-                            x: logoX,  // 🎨 使用动态计算的X坐标
-                            y: logoY ?? (frameSize.height - bottomBorderHeight / 2 - logoHeight / 2),  // 🔧 使用计算的Y坐标
-                            width: logoWidth,
-                            height: logoHeight
-                        )
-                        
-                        print("🏷️ 宝丽来相框 - Logo: 原始=\(logoImage.size), 渲染=\(logoRect.size), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
-                        logoImage.draw(in: logoRect)
-                    } else {
-                        print("❌ 宝丽来相框 - getLogoImage返回nil")
-                    }
-                }
-            } else {
-                print("🏷️ 宝丽来相框 - selectedLogo为nil")
-            }
+            // 🚀 使用SwiftUI自动布局替代手动计算
+            renderPolaroidBottomWithSwiftUI(
+                frameSize: frameSize,
+                borderHeight: bottomBorderHeight,
+                customText: customText,
+                infoText: infoText,
+                selectedLogo: selectedLogo,
+                frameSettings: frameSettings,
+                isLandscape: isLandscape
+            )
         }
+    }
+    
+    // 🚀 SwiftUI自动布局渲染宝丽来底部
+    private func renderPolaroidBottomWithSwiftUI(
+        frameSize: CGSize,
+        borderHeight: CGFloat,
+        customText: String,
+        infoText: String,
+        selectedLogo: String?,
+        frameSettings: FrameSettings?,
+        isLandscape: Bool
+    ) {
+        // 获取logo图像
+        var logoImage: UIImage?
+        if let logoName = selectedLogo {
+            let logoMaxHeight = borderHeight * 0.25
+            logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight)
+        }
+        
+        // 获取位置设置
+        let logoPosition: PolaroidLogoPosition = {
+            switch frameSettings?.logoPosition {
+            case .left: return .left
+            case .right: return .right
+            case .center, .none: return .center
+            }
+        }()
+        
+        let infoPosition: PolaroidInfoPosition = {
+            switch frameSettings?.infoPosition {
+            case .left: return .left
+            case .right: return .right
+            case .center, .none: return .center
+            }
+        }()
+        
+        // 创建SwiftUI视图
+        let layoutView = PolaroidBottomLayoutView(
+            frameSize: frameSize,
+            borderHeight: borderHeight,
+            logoImage: logoImage,
+            logoPosition: logoPosition,
+            infoPosition: infoPosition,
+            customText: customText,
+            infoText: infoText,
+            isLandscape: isLandscape
+        )
+        
+        // 转换为UIImage并绘制
+        let bottomLayoutImage = layoutView.asUIImage(
+            size: CGSize(width: frameSize.width, height: borderHeight)
+        )
+        
+        // 绘制到底部位置
+        let bottomRect = CGRect(
+            x: 0,
+            y: frameSize.height - borderHeight,
+            width: frameSize.width,
+            height: borderHeight
+        )
+        
+        bottomLayoutImage.draw(in: bottomRect)
     }
     
     // 渲染直接水印（无相框时使用）
@@ -927,10 +910,14 @@ class PhotoDecorationRenderer {
                 let logoMaxHeight = min(imageSize.width, imageSize.height) * 0.05  // 从0.08缩小到0.05
                 if let image = getLogoImage(logoName, maxHeight: logoMaxHeight) {
                     logoImage = image
-                    // 保持Logo真实宽高比
+                    // 保持Logo真实宽高比，88px最大宽度限制
                     let logoAspectRatio = image.size.width / image.size.height
-                    let logoHeight = min(image.size.height, logoMaxHeight)
-                    let logoWidth = logoHeight * logoAspectRatio
+                    let maxLogoWidth: CGFloat = 488 // 最大宽度488px
+                    
+                    // 根据88px限制和最大高度计算实际尺寸
+                    let baseLogoWidth = logoMaxHeight * logoAspectRatio
+                    let logoWidth = min(baseLogoWidth, maxLogoWidth)
+                    let logoHeight = logoWidth / logoAspectRatio
                     logoSize = CGSize(width: logoWidth, height: logoHeight)
                 }
             }
@@ -942,6 +929,22 @@ class PhotoDecorationRenderer {
             // 4. 渲染Logo（左侧，垂直居中）
             if let logo = logoImage, hasLogo {
                 let logoY = startY + (contentHeight - logoSize.height) / 2 // 垂直居中
+                
+                // 🎨 添加红色背景色，留出一些padding
+                let padding: CGFloat = 4
+                let backgroundRect = CGRect(
+                    x: margin - padding,
+                    y: logoY - padding,
+                    width: logoSize.width + 2 * padding,
+                    height: logoSize.height + 2 * padding
+                )
+                
+                // 绘制红色背景
+                if let context = UIGraphicsGetCurrentContext() {
+                    context.setFillColor(UIColor.red.cgColor)
+                    context.fill(backgroundRect)
+                }
+                
                 let logoRect = CGRect(
                     x: margin,
                     y: logoY,

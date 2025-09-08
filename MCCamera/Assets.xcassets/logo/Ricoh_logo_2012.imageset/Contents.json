@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Ricoh_logo_2012.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Ricoh_logo_2012.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Nikon_Logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Nikon_Logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

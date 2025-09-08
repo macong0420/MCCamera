@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Hasselblad_logo_w.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Hasselblad_logo_w.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

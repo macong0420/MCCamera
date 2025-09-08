@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Leica_Camera_logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Leica_Camera_logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

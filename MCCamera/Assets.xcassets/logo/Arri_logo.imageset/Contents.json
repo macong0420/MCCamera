@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Arri_logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Arri_logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

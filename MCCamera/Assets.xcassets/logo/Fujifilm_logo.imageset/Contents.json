@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Fujifilm_logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Fujifilm_logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },

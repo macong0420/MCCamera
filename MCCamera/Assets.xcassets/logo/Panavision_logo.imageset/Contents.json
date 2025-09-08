@@ -1,11 +1,11 @@
 {
   "images" : [
     {
-      "filename" : "Panavision_logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "Panavision_logo.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
