@@ -51,10 +51,16 @@ struct CameraPreview: UIViewRepresentable {
             // 设置初始方向
             context.coordinator.updatePreviewLayerOrientation()
         } else {
-            // 更新frame和方向
-            DispatchQueue.main.async {
-                context.coordinator.previewLayer?.frame = uiView.bounds
-                context.coordinator.updatePreviewLayerOrientation()
+            // 🔧 修复：立即更新frame，不使用异步
+            context.coordinator.previewLayer?.frame = uiView.bounds
+            context.coordinator.updatePreviewLayerOrientation()
+            
+            // 🔧 修复：强制重新布局预览层
+            if let previewLayer = context.coordinator.previewLayer {
+                CATransaction.begin()
+                CATransaction.setDisableActions(true) // 禁用隐式动画
+                previewLayer.frame = uiView.bounds
+                CATransaction.commit()
             }
         }
     }
@@ -78,8 +84,14 @@ struct CameraPreview: UIViewRepresentable {
         }
         
         @objc func orientationDidChange() {
+            print("📱 设备方向改变通知")
             DispatchQueue.main.async {
                 self.updatePreviewLayerOrientation()
+                // 🔧 修复：同时更新预览层frame
+                if let parentView = self.parentView {
+                    self.previewLayer?.frame = parentView.bounds
+                    print("📐 方向改变时更新预览层frame: \(parentView.bounds)")
+                }
             }
         }
         
@@ -87,12 +99,18 @@ struct CameraPreview: UIViewRepresentable {
             guard let previewLayer = previewLayer,
                   let connection = previewLayer.connection,
                   connection.isVideoOrientationSupported else {
+                print("❌ 预览层或连接不可用，无法更新方向")
                 return
             }
             
             let orientation = getVideoOrientation()
-            print("🔄 更新预览层方向: \(orientation)")
+            print("🔄 更新预览层方向: \(orientation), frame: \(previewLayer.frame)")
+            
+            // 🔧 修复：使用CATransaction确保方向和frame同步更新
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             connection.videoOrientation = orientation
+            CATransaction.commit()
         }
         
         private func getVideoOrientation() -> AVCaptureVideoOrientation {
