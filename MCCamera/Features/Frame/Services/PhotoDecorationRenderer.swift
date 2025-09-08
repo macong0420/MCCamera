@@ -405,21 +405,6 @@ class PhotoDecorationRenderer {
                         rightMargin: 20  // 右边距
                     )
                     
-                    // 🎨 添加红色背景色，留出一些padding
-                    let padding: CGFloat = 4
-                    let backgroundRect = CGRect(
-                        x: logoX - padding,
-                        y: imageSize.height - barHeight / 2 - logoHeight / 2 - padding,
-                        width: logoWidth + 2 * padding,
-                        height: logoHeight + 2 * padding
-                    )
-                    
-                    // 绘制红色背景
-                    if let context = UIGraphicsGetCurrentContext() {
-                        context.setFillColor(UIColor.red.cgColor)
-                        context.fill(backgroundRect)
-                    }
-                    
                     let logoRect = CGRect(
                         x: logoX,  // 🎨 使用动态计算的X坐标
                         y: imageSize.height - barHeight / 2 - logoHeight / 2,
@@ -929,21 +914,6 @@ class PhotoDecorationRenderer {
             // 4. 渲染Logo（左侧，垂直居中）
             if let logo = logoImage, hasLogo {
                 let logoY = startY + (contentHeight - logoSize.height) / 2 // 垂直居中
-                
-                // 🎨 添加红色背景色，留出一些padding
-                let padding: CGFloat = 4
-                let backgroundRect = CGRect(
-                    x: margin - padding,
-                    y: logoY - padding,
-                    width: logoSize.width + 2 * padding,
-                    height: logoSize.height + 2 * padding
-                )
-                
-                // 绘制红色背景
-                if let context = UIGraphicsGetCurrentContext() {
-                    context.setFillColor(UIColor.red.cgColor)
-                    context.fill(backgroundRect)
-                }
                 
                 let logoRect = CGRect(
                     x: margin,
