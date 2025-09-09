@@ -64,8 +64,10 @@ struct WatermarkSettingsView: View {
                 Picker("选择Logo", selection: $settings.selectedLogo) {
                     ForEach(BrandLogo.allCases, id: \.self) { logo in
                         HStack {
-                            if LogoManager.shared.isLogoAvailable(logo) {
-                                LogoManager.shared.logoView(for: logo, size: CGSize(width: 16, height: 16))
+                            // 使用DynamicLogoManager替代LogoManager
+                            if let logoImageName = logo.imageName,
+                               let dynamicLogo = DynamicLogoManager.shared.availableLogos.first(where: { $0.imageName == logoImageName }) {
+                                DynamicLogoManager.shared.logoView(for: dynamicLogo, size: CGSize(width: 16, height: 16))
                             }
                             Text(logo.displayName)
                         }.tag(logo)
@@ -120,8 +122,9 @@ struct WatermarkPreview: View {
                 // Logo行
                 if settings.showLogoLine && settings.selectedLogo != .none {
                     HStack(spacing: 4) {
-                        if LogoManager.shared.isLogoAvailable(settings.selectedLogo) {
-                            LogoManager.shared.logoView(for: settings.selectedLogo, size: CGSize(width: 20, height: 20))
+                        if let logoImageName = settings.selectedLogo.imageName,
+                           let dynamicLogo = DynamicLogoManager.shared.availableLogos.first(where: { $0.imageName == logoImageName }) {
+                            DynamicLogoManager.shared.logoView(for: dynamicLogo, size: CGSize(width: 20, height: 20))
                         } else if settings.selectedLogo != .none {
                             Text(settings.selectedLogo.displayName.prefix(1))
                                 .font(.system(size: 18, weight: .bold))

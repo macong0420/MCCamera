@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // 🎨 简化：水印样式枚举 - 只保留一种统一样式
 enum WatermarkStyle: String, CaseIterable, Codable {
@@ -139,8 +140,107 @@ struct WatermarkSettings: Codable {
     static func load() -> WatermarkSettings {
         guard let data = UserDefaults.standard.data(forKey: "WatermarkSettings"),
               let settings = try? JSONDecoder().decode(WatermarkSettings.self, from: data) else {
+            print("🔧 WatermarkSettings: 使用默认设置")
             return WatermarkSettings()
         }
+        
+        print("🔧 WatermarkSettings: 加载已保存设置")
+        print("  - isEnabled: \(settings.isEnabled)")
+        print("  - selectedLogo: \(settings.selectedLogo)")
+        print("  - showLogoLine: \(settings.showLogoLine)")
+        
         return settings
+    }
+    
+    // 🎯 调试用：临时启用Logo测试
+    static func enableTestLogo() {
+        var settings = WatermarkSettings.load()
+        settings.isEnabled = true
+        settings.selectedLogo = .hasselblad  // 使用哈苏Logo测试
+        settings.showLogoLine = true
+        settings.showDeviceModel = true
+        settings.save()
+        print("🧪 测试Logo已启用: Hasselblad")
+    }
+    
+    // 🎯 调试用：启用Apple Logo测试（确保资源存在）
+    static func enableAppleLogoTest() {
+        var settings = WatermarkSettings.load()
+        settings.isEnabled = true
+        settings.selectedLogo = .apple  // 使用Apple Logo测试
+        settings.showLogoLine = true
+        settings.showDeviceModel = true
+        settings.showDate = true        // 启用日期显示
+        settings.showTimeStamp = true   // 启用时间戳显示
+        settings.logoPosition = .center
+        settings.infoPosition = .center
+        settings.save()
+        print("🧪 Apple Logo测试已启用（包含日期和时间戳）")
+    }
+    
+    // 🎯 调试用：验证Logo资源是否存在
+    static func verifyLogoResources() {
+        let allLogos = BrandLogo.allCases.filter { $0 != .none && $0 != .custom }
+        
+        print("🔍 Logo资源验证:")
+        for logo in allLogos {
+            if let imageName = logo.imageName {
+                let exists = UIImage(named: imageName) != nil
+                print("  - \(logo.displayName) (\(imageName)): \(exists ? "✅存在" : "❌缺失")")
+            }
+        }
+    }
+    
+    // 🎯 调试用：测试Logo左对齐
+    static func testLogoLeftAlignment() {
+        var settings = WatermarkSettings.load()
+        settings.isEnabled = true
+        settings.selectedLogo = .zeiss
+        settings.showLogoLine = true
+        settings.logoPosition = .left  // 左对齐
+        settings.infoPosition = .left  // 信息也左对齐保持一致
+        // 确保其他行显示设置
+        settings.showDeviceModel = true
+        settings.showFocalLength = true
+        settings.showDate = true
+        settings.save()
+        print("🧪 Logo左对齐测试已启用")
+        print("  - logoPosition: \(settings.logoPosition.displayName)")
+        print("  - selectedLogo: \(settings.selectedLogo.displayName)")
+    }
+    
+    // 🎯 调试用：测试Logo右对齐
+    static func testLogoRightAlignment() {
+        var settings = WatermarkSettings.load()
+        settings.isEnabled = true
+        settings.selectedLogo = .zeiss
+        settings.showLogoLine = true
+        settings.logoPosition = .right  // 右对齐
+        settings.infoPosition = .right  // 信息也右对齐保持一致
+        settings.save()
+        print("🧪 Logo右对齐测试已启用")
+    }
+    
+    // 🎯 调试用：测试Logo居中对齐
+    static func testLogoCenterAlignment() {
+        var settings = WatermarkSettings.load()
+        settings.isEnabled = true
+        settings.selectedLogo = .zeiss
+        settings.showLogoLine = true
+        settings.logoPosition = .center  // 居中对齐
+        settings.infoPosition = .center  // 信息也居中对齐保持一致
+        settings.save()
+        print("🧪 Logo居中对齐测试已启用")
+    }
+    
+    // 🎯 调试用：查看当前设置状态
+    static func checkCurrentSettings() {
+        let settings = WatermarkSettings.load()
+        print("🔍 当前Logo设置状态:")
+        print("  - isEnabled: \(settings.isEnabled)")
+        print("  - selectedLogo: \(settings.selectedLogo.displayName)")
+        print("  - showLogoLine: \(settings.showLogoLine)")
+        print("  - logoPosition: \(settings.logoPosition.displayName)")
+        print("  - infoPosition: \(settings.infoPosition.displayName)")
     }
 }

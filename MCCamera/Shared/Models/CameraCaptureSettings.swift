@@ -225,6 +225,6 @@ struct CameraCaptureSettings {
             components.append("\(sign)\(String(format: "%.1f", exposureBias))EV")
         }
         
-        return components.joined(separator: " / ")
+        return components.joined(separator: " ")
     }
 }

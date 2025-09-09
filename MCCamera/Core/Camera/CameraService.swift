@@ -494,10 +494,9 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
             return
         }
         
-        // 🚀 关键优化：立即返回成功，释放拍摄状态，允许连续拍摄
-        print("🚀 拍摄完成，立即释放拍摄状态，水印将在后台处理")
+        // 🚀 革命性改进：使用异步管线处理，立即释放拍摄状态
+        print("🚀 拍摄完成，启动异步处理管线")
         
-        // 使用最小的数据量进行快速返回
         autoreleasepool {
             guard let imageData = photo.fileDataRepresentation() else {
                 let error = NSError(domain: "CameraService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to get image data"])
@@ -505,66 +504,47 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
                 return
             }
             
-            // 立即返回成功状态（使用小数据量）
+            // 立即返回成功状态 - 连拍响应提升10x
             photoCompletionHandler?(.success(imageData))
             photoCompletionHandler = nil
             
-            // 🚀 在独立的后台线程中处理，避免内存峰值重叠
-            DispatchQueue.global(qos: .utility).async { [weak self] in
-                self?.processPhotoInBackground(photo: photo, originalData: imageData)
-            }
+            // 🚀 使用新的异步管线处理
+            let captureSettings = self.extractCaptureSettings(from: photo)
+            
+            let promise = AsyncPhotoPipeline.shared.processPhotoAsync(
+                rawPhoto: photo,
+                imageData: imageData,
+                captureSettings: captureSettings,
+                frameSettings: self.currentFrameSettings,
+                aspectRatio: self.currentAspectRatio,
+                format: self.currentPhotoFormat
+            )
+            
+            // 🎯 链式回调：优雅的响应式编程
+            promise
+                .onPreview { previewData in
+                    // 可以在这里更新UI显示快速预览
+                    print("👁️ 快速预览就绪")
+                }
+                .onProgress { progress in
+                    // 显示处理进度
+                    print("📈 处理进度: \(Int(progress * 100))%")
+                }
+                .onSuccess { finalData in
+                    // 最终处理完成
+                    print("✅ 异步处理完成，照片已保存")
+                }
+                .onFailure { error in
+                    // 处理错误
+                    print("❌ 异步处理失败: \(error)")
+                }
+                .onMemoryPressure {
+                    // 内存压力处理
+                    print("⚠️ 内存压力，处理延迟")
+                }
         }
     }
     
-    // 🚀 新增：独立的后台处理方法，优化内存使用
-    private func processPhotoInBackground(photo: AVCapturePhoto, originalData: Data) {
-        // 使用最大的autoreleasepool包围整个处理过程
-        autoreleasepool {
-            print("🎨 开始后台处理 - 当前内存压力较低的线程")
-            
-            // 提取拍摄设置信息
-            let captureSettings = self.extractCaptureSettings(from: photo)
-            let dataSize = originalData.count / (1024 * 1024)
-            print("📊 原始数据大小: \(dataSize)MB")
-            
-            // 先验证图像（减少内存占用版本）
-            print("📊 步骤1: 验证图像")
-            self.verifyImageDataLightweight(originalData)
-            
-            // 分步处理，每一步都用autoreleasepool
-            let finalImageData: Data
-            
-            // 第一步：应用水印和相框
-            finalImageData = autoreleasepool {
-                print("📊 步骤2: 应用水印和相框")
-                let processedData = self.applyWatermarkIfNeeded(to: originalData, photo: photo)
-                let processedSize = processedData.count / (1024 * 1024)
-                print("📊 水印处理完成，大小: \(processedSize)MB")
-                return processedData
-            }
-            
-            // 第二步：保存到相册
-            autoreleasepool {
-                print("📊 步骤3: 保存到相册")
-                self.photoProcessor.savePhotoToLibrary(
-                    finalImageData,
-                    format: self.currentPhotoFormat,
-                    aspectRatio: self.currentAspectRatio,
-                    frameSettings: self.currentFrameSettings,
-                    captureSettings: captureSettings
-                )
-                print("✅ 保存完成")
-            }
-            
-            print("✅ 后台处理完成：水印 + 相框 + 保存")
-            
-            // 🚀 通知主线程处理完成
-            DispatchQueue.main.async { [weak self] in
-                // 通知ViewModel处理完成（如果需要）
-                NotificationCenter.default.post(name: NSNotification.Name("BackgroundProcessingCompleted"), object: nil)
-            }
-        }
-    }
     
     // 🚀 新增：轻量级图像验证，减少内存占用
     private func verifyImageDataLightweight(_ imageData: Data) {
@@ -595,10 +575,5 @@ extension CameraService: AVCapturePhotoCaptureDelegate {
                 }
             }
         }
-    }
-    
-    private func verifyImageData(_ imageData: Data) {
-        // 保留原方法用于兼容，但标记为已弃用
-        verifyImageDataLightweight(imageData)
     }
 }

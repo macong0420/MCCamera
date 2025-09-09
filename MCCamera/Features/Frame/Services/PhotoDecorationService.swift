@@ -44,7 +44,7 @@ class PhotoDecorationService {
             }
             
             // 修复图像方向 - 确保图像以正确的方向显示
-            let image = fixImageOrientation(originalImage)
+            let image = originalImage.fixedOrientation()
             
             // 获取照片元数据
             let metadata = getMetadataFromImageData(imageData)
@@ -192,24 +192,4 @@ class PhotoDecorationService {
         return metadata
     }
     
-    // 修复图像方向 - 确保图像以正确的方向显示
-    private func fixImageOrientation(_ image: UIImage) -> UIImage {
-        // 如果图像方向已经是向上，直接返回
-        if image.imageOrientation == .up {
-            return image
-        }
-        
-        // 创建正确方向的图像
-        UIGraphicsBeginImageContextWithOptions(image.size, false, image.scale)
-        defer { UIGraphicsEndImageContext() }
-        
-        image.draw(in: CGRect(origin: .zero, size: image.size))
-        
-        guard let normalizedImage = UIGraphicsGetImageFromCurrentImageContext() else {
-            print("❌ 无法修复图像方向，返回原图像")
-            return image
-        }
-        
-        return normalizedImage
-    }
 }

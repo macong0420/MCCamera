@@ -134,14 +134,6 @@ class WatermarkService {
     
     
     
-    private func formatShutterSpeed(_ speed: Double) -> String {
-        if speed >= 1.0 {
-            return String(format: "%.0fs", speed)
-        } else {
-            let denominator = Int(1.0 / speed)
-            return "1/\(denominator)s"
-        }
-    }
     
     // MARK: - 专业垂直水印渲染
     
@@ -196,19 +188,29 @@ class WatermarkService {
         // 🎨 计算起始Y位置 - 统一使用底部对齐，位置差异通过X坐标体现
         let startY = effectiveRect.maxY - bottomPadding - totalHeight
         
-        // 计算X位置
+        // 计算X位置 - logo左对齐贴近边界，右对齐保持边距
         let centerX = effectiveRect.midX
-        let leftX = effectiveRect.minX + baseSize * 0.05
-        let rightX = effectiveRect.maxX - baseSize * 0.05
+        let leftX = effectiveRect.minX  // 左对齐直接贴近边界
+        let rightEdgePadding = baseSize * 0.05  // 右边距
         
         var currentY = startY
         var lineIndex = 0
         
-        // 绘制Logo行
+        // 绘制Logo行 - 支持DynamicLogoManager
+        print("🎨 WatermarkService Logo渲染检查:")
+        print("  - showLogoLine: \(settings.showLogoLine)")
+        print("  - selectedLogo: \(settings.selectedLogo)")
+        print("  - selectedLogo != .none: \(settings.selectedLogo != .none)")
+        print("  - logoPosition: \(settings.logoPosition.displayName)")
+        print("  - infoPosition: \(settings.infoPosition.displayName)")
+        
         if settings.showLogoLine && settings.selectedLogo != .none {
             let logoY = currentY
             
-            if let logoImage = LogoManager.shared.loadLogo(settings.selectedLogo) {
+            // 🔧 使用统一的Logo加载器
+            let logoImage = LogoLoader.shared.loadLogoFromSettings(settings)
+            
+            if let logoImage = logoImage {
                 // 🔧 修复：保持Logo的真实宽高比，88px最大宽度限制，按比例调整高度
                 let logoAspectRatio = logoImage.size.width / logoImage.size.height
                 let maxLogoWidth: CGFloat = 488 // 最大宽度488px
@@ -217,28 +219,72 @@ class WatermarkService {
                 let logoWidth = min(logoSize * logoAspectRatio, maxLogoWidth)
                 let logoHeight = logoWidth / logoAspectRatio
                 
-                // 🎨 使用新的Logo位置设置
+                // 🎨 修复logo位置计算 - 确保左右对齐边距一致
                 let logoX: CGFloat
                 switch settings.logoPosition {
                 case .left:
-                    logoX = leftX
+                    logoX = leftX  // 左对齐：logo左边距离左边界固定距离
                 case .right:
-                    logoX = rightX - logoWidth // 使用实际计算的宽度
+                    logoX = effectiveRect.maxX - rightEdgePadding - logoWidth  // 右对齐：logo右边距离右边界固定距离
                 case .center:
-                    logoX = centerX - logoWidth / 2 // 使用实际计算的宽度
+                    logoX = centerX - logoWidth / 2  // 居中：logo中心在画面中心
+                }
+                
+                // 🔴 创建红色背景矩形 - 固定宽度，按对齐方式定位
+                let backgroundWidth: CGFloat = 488  // 固定红色背景宽度
+                let backgroundHeight = logoHeight   // 背景高度等于logo高度
+                
+                let backgroundX: CGFloat
+                switch settings.logoPosition {
+                case .left:
+                    backgroundX = leftX  // 左对齐：背景左边贴近边界
+                    print("  🎨 左对齐：backgroundX = \(backgroundX), leftX = \(leftX)")
+                case .right:
+                    backgroundX = effectiveRect.maxX - rightEdgePadding - backgroundWidth  // 右对齐：背景右边距离边界固定距离
+                    print("  🎨 右对齐：backgroundX = \(backgroundX)")
+                case .center:
+                    backgroundX = centerX - backgroundWidth / 2  // 居中：背景中心在画面中心
+                    print("  🎨 居中：backgroundX = \(backgroundX), centerX = \(centerX)")
+                }
+                
+                let backgroundRect = CGRect(
+                    x: backgroundX,
+                    y: logoY,
+                    width: backgroundWidth,
+                    height: backgroundHeight
+                )
+                
+                // 🔴 绘制红色背景
+                context.setFillColor(UIColor.red.cgColor)
+                context.fill(backgroundRect)
+                
+                // 🎨 在红色背景内绘制logo - 按对齐方式定位
+                let logoInBackgroundX: CGFloat
+                switch settings.logoPosition {
+                case .left:
+                    logoInBackgroundX = backgroundRect.minX  // 左对齐：logo贴着背景左边
+                    print("  🎨 Logo左对齐：logoInBackgroundX = \(logoInBackgroundX), backgroundRect.minX = \(backgroundRect.minX)")
+                case .right:
+                    logoInBackgroundX = backgroundRect.maxX - logoWidth  // 右对齐：logo贴着背景右边
+                    print("  🎨 Logo右对齐：logoInBackgroundX = \(logoInBackgroundX)")
+                case .center:
+                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2  // 居中：logo在背景中心
+                    print("  🎨 Logo居中：logoInBackgroundX = \(logoInBackgroundX), backgroundRect.midX = \(backgroundRect.midX)")
                 }
                 
                 let logoRect = CGRect(
-                    x: logoX,
+                    x: logoInBackgroundX,
                     y: logoY,
-                    width: logoWidth, // 使用按比例计算的宽度（488px限制）
-                    height: logoHeight // 使用按比例计算的高度
+                    width: logoWidth,
+                    height: logoHeight
                 )
+                
+                // 绘制logo图片
                 logoImage.draw(in: logoRect)
                 
-                print("  🎨 Logo绘制: 位置=\(settings.position.displayName), 原始尺寸=\(logoImage.size), 渲染尺寸=\(logoRect.size), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
+                print("  🎨 Logo绘制成功: 位置=\(settings.logoPosition.displayName), 原始尺寸=\(logoImage.size), 渲染尺寸=\(logoRect.size), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
             } else {
-                print("  ⚠️ Logo加载失败: \(settings.selectedLogo)")
+                print("  ❌ Logo加载失败: \(settings.selectedLogo.displayName) (imageName: \(settings.selectedLogo.imageName ?? "nil"))")
             }
             
             currentY += lineHeights[lineIndex] + lineSpacing
@@ -250,15 +296,15 @@ class WatermarkService {
             let font = content == watermarkContent.first ? titleFont : lineFont
             let textSize = content.size(withAttributes: [.font: font])
             
-            // 🎨 使用新的信息位置设置
+            // 🎨 修复文字位置计算 - 确保左右对齐边距一致
             let textX: CGFloat
             switch settings.infoPosition {
             case .left:
-                textX = leftX
+                textX = leftX  // 左对齐：文字左边距离左边界固定距离
             case .right:
-                textX = rightX - textSize.width
+                textX = effectiveRect.maxX - rightEdgePadding - textSize.width  // 右对齐：文字右边距离右边界固定距离
             case .center:
-                textX = centerX - textSize.width / 2
+                textX = centerX - textSize.width / 2  // 居中：文字中心在画面中心
             }
             
             drawTextWithShadow(content, 
@@ -273,7 +319,7 @@ class WatermarkService {
         context.restoreGState()
     }
     
-    // 🚀 新增：简化版专业垂直水印绘制
+    // 🚀 新增：简化版专业垂直水印绘制（包含Logo）
     private func drawProfessionalVerticalWatermarkSimplified(in rect: CGRect, context: CGContext, settings: WatermarkSettings, captureSettings: CameraCaptureSettings, aspectRatio: AspectRatio?, isLandscape: Bool) {
         context.saveGState()
         
@@ -287,6 +333,7 @@ class WatermarkService {
         
         // 计算基本参数 - 横屏适配
         let baseSize = min(effectiveRect.width, effectiveRect.height)
+        let logoSize = baseSize * (isLandscape ? 0.035 : 0.04)      // Logo大小
         let titleFontSize = baseSize * (isLandscape ? 0.024 : 0.028)
         let lineFontSize = baseSize * (isLandscape ? 0.020 : 0.024)
         let lineSpacing = baseSize * 0.012
@@ -298,38 +345,143 @@ class WatermarkService {
         // 获取水印内容
         let watermarkContent = buildWatermarkContent(settings: settings, captureSettings: captureSettings)
         
-        // 计算总高度（简化版本）
-        let lineCount = watermarkContent.filter { !$0.isEmpty }.count
-        let totalHeight = CGFloat(lineCount) * lineFont.lineHeight + CGFloat(lineCount - 1) * lineSpacing
+        print("🎨 WatermarkService 简化版Logo渲染检查:")
+        print("  - showLogoLine: \(settings.showLogoLine)")
+        print("  - selectedLogo: \(settings.selectedLogo)")
+        print("  - selectedLogo != .none: \(settings.selectedLogo != .none)")
+        
+        // 🔧 重大修复：计算总高度时包含Logo
+        var totalHeight: CGFloat = 0
+        var lineHeights: [CGFloat] = []
+        
+        // Logo行高度
+        if settings.showLogoLine && settings.selectedLogo != .none {
+            lineHeights.append(logoSize)
+            totalHeight += logoSize + lineSpacing
+            print("  - Logo行将被渲染，高度: \(logoSize)")
+        }
+        
+        // 文字行高度
+        for content in watermarkContent where !content.isEmpty {
+            let font = content == watermarkContent.first ? titleFont : lineFont
+            lineHeights.append(font.lineHeight)
+            totalHeight += font.lineHeight + lineSpacing
+        }
+        
+        if totalHeight > 0 {
+            totalHeight -= lineSpacing // 移除最后一个间距
+        }
         
         let startY = effectiveRect.maxY - bottomPadding - totalHeight
         let centerX = effectiveRect.midX
-        let leftX = effectiveRect.minX + baseSize * 0.05
-        let rightX = effectiveRect.maxX - baseSize * 0.05
+        let leftX = effectiveRect.minX  // 左对齐直接贴近边界
+        let rightEdgePadding = baseSize * 0.05  // 右边距
         
         var currentY = startY
+        var lineIndex = 0
+        
+        // 🔧 重大修复：绘制Logo行
+        if settings.showLogoLine && settings.selectedLogo != .none {
+            let logoY = currentY
+            
+            // 🔧 使用统一的Logo加载器
+            let logoImage = LogoLoader.shared.loadLogoFromSettings(settings)
+            
+            if let logoImage = logoImage {
+                // 保持Logo的真实宽高比
+                let logoAspectRatio = logoImage.size.width / logoImage.size.height
+                let maxLogoWidth: CGFloat = 488
+                
+                let logoWidth = min(logoSize * logoAspectRatio, maxLogoWidth)
+                let logoHeight = logoWidth / logoAspectRatio
+                
+                // 🎨 修复简化版logo位置计算 - 确保左右对齐边距一致
+                let logoX: CGFloat
+                switch settings.logoPosition {
+                case .left:
+                    logoX = leftX  // 左对齐：logo左边距离左边界固定距离
+                case .right:
+                    logoX = effectiveRect.maxX - rightEdgePadding - logoWidth  // 右对齐：logo右边距离右边界固定距离
+                case .center:
+                    logoX = centerX - logoWidth / 2  // 居中：logo中心在画面中心
+                }
+                
+                // 🔴 创建红色背景矩形（简化版） - 固定宽度，按对齐方式定位
+                let backgroundWidth: CGFloat = 488  // 固定红色背景宽度
+                let backgroundHeight = logoHeight   // 背景高度等于logo高度
+                
+                let backgroundX: CGFloat
+                switch settings.logoPosition {
+                case .left:
+                    backgroundX = leftX  // 左对齐：背景左边贴近边界
+                case .right:
+                    backgroundX = effectiveRect.maxX - rightEdgePadding - backgroundWidth  // 右对齐：背景右边距离边界固定距离
+                case .center:
+                    backgroundX = centerX - backgroundWidth / 2  // 居中：背景中心在画面中心
+                }
+                
+                let backgroundRect = CGRect(
+                    x: backgroundX,
+                    y: logoY,
+                    width: backgroundWidth,
+                    height: backgroundHeight
+                )
+                
+                // 🔴 绘制红色背景（简化版）
+                context.setFillColor(UIColor.red.cgColor)
+                context.fill(backgroundRect)
+                
+                // 🎨 在红色背景内绘制logo（简化版） - 按对齐方式定位
+                let logoInBackgroundX: CGFloat
+                switch settings.logoPosition {
+                case .left:
+                    logoInBackgroundX = backgroundRect.minX  // 左对齐：logo贴着背景左边
+                case .right:
+                    logoInBackgroundX = backgroundRect.maxX - logoWidth  // 右对齐：logo贴着背景右边
+                case .center:
+                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2  // 居中：logo在背景中心
+                }
+                
+                let logoRect = CGRect(
+                    x: logoInBackgroundX,
+                    y: logoY,
+                    width: logoWidth,
+                    height: logoHeight
+                )
+                
+                // 绘制logo图片
+                logoImage.draw(in: logoRect)
+                print("  🎨 简化版Logo绘制成功: 尺寸=\(logoRect.size)")
+            } else {
+                print("  ❌ 简化版Logo加载失败: \(settings.selectedLogo.displayName)")
+            }
+            
+            currentY += lineHeights[lineIndex] + lineSpacing
+            lineIndex += 1
+        }
         
         // 绘制文字行（简化版本）
         for content in watermarkContent where !content.isEmpty {
             let font = content == watermarkContent.first ? titleFont : lineFont
             let textSize = content.size(withAttributes: [.font: font])
             
-            // 🎨 使用新的信息位置设置
+            // 🎨 修复简化版文字位置计算 - 确保左右对齐边距一致
             let textX: CGFloat
             switch settings.infoPosition {
             case .left:
-                textX = leftX
+                textX = leftX  // 左对齐：文字左边距离左边界固定距离
             case .right:
-                textX = rightX - textSize.width
+                textX = effectiveRect.maxX - rightEdgePadding - textSize.width  // 右对齐：文字右边距离右边界固定距离
             case .center:
-                textX = centerX - textSize.width / 2
+                textX = centerX - textSize.width / 2  // 居中：文字中心在画面中心
             }
             
             drawTextSimplified(content,
                              font: font,
                              at: CGPoint(x: textX, y: currentY))
             
-            currentY += font.lineHeight + lineSpacing
+            currentY += lineHeights[lineIndex] + lineSpacing
+            lineIndex += 1
         }
         
         context.restoreGState()
@@ -387,7 +539,7 @@ class WatermarkService {
         
         // 如果有拍摄参数，组合成一行
         if !parameterComponents.isEmpty {
-            let parametersLine = parameterComponents.joined(separator: " / ")
+            let parametersLine = parameterComponents.joined(separator: " ")
             content.append(parametersLine)
         }
         

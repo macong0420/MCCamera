@@ -52,37 +52,42 @@ struct PolaroidBottomLayoutView: View {
             .frame(maxWidth: .infinity, alignment: alignmentForPosition(logoPosition))
             .padding(.horizontal, borderWidth)
         } else {
-            // 🎯 情况2: logo和信息在不同位置 - 精确宽度分配布局
-            HStack(spacing: 20) { // Logo和文字之间固定20px间距
-                // 左侧内容（Logo或信息）
-                if logoPosition == .left && logoImage != nil {
-                    logoView
-                } else if infoPosition == .left && hasTextContent {
-                    textContentView
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            // 🎯 情况2: logo和信息在不同位置 - 精确对齐布局
+            HStack {
+                // 左侧内容区域
+                Group {
+                    if logoPosition == .left && logoImage != nil {
+                        logoView
+                            .frame(maxWidth: .infinity, alignment: .leading) // Logo在背景容器内左对齐
+                            .padding(.leading, borderWidth) // 背景左间距与信息一致
+                    } else if infoPosition == .left && hasTextContent {
+                        textContentView
+                            .padding(.leading, borderWidth)
+                    }
                 }
                 
-                // 中心内容（如果需要）
+                Spacer() // 中间弹性空间
+                
+                // 右侧内容区域
+                Group {
+                    if logoPosition == .right && logoImage != nil {
+                        logoView
+                            .frame(maxWidth: .infinity, alignment: .trailing) // Logo在背景容器内右对齐
+                            .padding(.trailing, borderWidth) // 背景右间距与信息一致
+                    } else if infoPosition == .right && hasTextContent {
+                        textContentView
+                            .padding(.trailing, borderWidth)
+                    }
+                }
+                
+                // 中心内容（覆盖Spacer）
                 if logoPosition == .center && logoImage != nil {
-                    Spacer()
                     logoView
-                    Spacer()
+                        .frame(maxWidth: .infinity, alignment: .center) // Logo在背景容器内居中对齐
                 } else if infoPosition == .center && hasTextContent {
                     textContentView
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                
-                // 右侧内容（Logo或信息）
-                if logoPosition == .right && logoImage != nil {
-                    Spacer()
-                    logoView
-                } else if infoPosition == .right && hasTextContent {
-                    Spacer()
-                    textContentView
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .padding(.horizontal, borderWidth) // 左右边距
         }
     }
     
@@ -127,14 +132,15 @@ struct PolaroidBottomLayoutView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: 488, maxHeight: borderHeight * 0.25) // 🔧 修复：488px最大宽度，25%最大高度
+                .background(Color.red) // 🎯 调试：红色背景显示Logo边界
         }
     }
     
     // 文字内容视图 - 单行显示，自适应宽度
     @ViewBuilder
     private var textContentView: some View {
-        // 🔧 修复：所有信息合并为一行显示，避免换行
-        let combinedText = [customText, infoText].filter { !$0.isEmpty }.joined(separator: " | ")
+        // 🔧 修复：所有信息合并为一行显示，使用空格分隔
+        let combinedText = [customText, infoText].filter { !$0.isEmpty }.joined(separator: " ")
         
         if !combinedText.isEmpty {
             Text(combinedText)
