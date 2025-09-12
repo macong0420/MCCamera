@@ -509,26 +509,88 @@ class PhotoDecorationRenderer {
             autoreleasepool {
                 let logoMaxHeight = barHeight * 0.4
                 if let logoImage = getLogoImage(logoName, maxHeight: logoMaxHeight) {
-                    // 保持Logo真实宽高比，88px最大宽度限制
+                    // 智能Logo尺寸计算 - 固定高度，宽度智能适配
                     let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                    let maxLogoWidth: CGFloat = 488 // 最大宽度488px
                     
-                    // 根据88px限制和最大高度计算实际尺寸
-                    let baseLogoWidth = logoMaxHeight * logoAspectRatio
-                    let logoWidth = min(baseLogoWidth, maxLogoWidth)
+                    // 固定Logo高度
+                    let fixedLogoHeight = logoMaxHeight
+                    
+                    // 根据宽高比计算宽度
+                    var calculatedWidth = fixedLogoHeight * logoAspectRatio
+                    
+                    // 设置宽度范围 - 避免极端情况
+                    let minLogoWidth: CGFloat = 40   // 避免过窄Logo
+                    let maxLogoWidth: CGFloat = 300  // 避免过宽Logo
+                    
+                    calculatedWidth = min(max(calculatedWidth, minLogoWidth), maxLogoWidth)
+                    
+                    // 重新计算高度以保持宽高比
+                    let logoWidth = calculatedWidth
                     let logoHeight = logoWidth / logoAspectRatio
                     
                     print("🏷️ Logo尺寸: 原始=\(logoImage.size), 渲染=\(CGSize(width: logoWidth, height: logoHeight)), 宽高比=\(String(format: "%.2f", logoAspectRatio))")
                     
                     // 🎨 根据logoPosition动态计算X坐标
                     let logoPosition = frameSettings?.logoPosition ?? .left  // 底部文字相框默认左对齐
-                    let logoX = calculateXPosition(
-                        for: logoPosition,
-                        containerWidth: imageSize.width,
-                        contentWidth: logoWidth,
-                        leftMargin: 20,  // 左边距
-                        rightMargin: 20  // 右边距
+                    print("🏷️ 📍 Logo位置设置: \(logoPosition) (frameSettings存在: \(frameSettings != nil))")
+                    
+                    // 🔴 创建红色背景矩形 - 动态宽度适配Logo
+                    let padding: CGFloat = 20
+                    let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
+                    let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度
+                    
+                    let backgroundWidth = min(max(logoWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
+                    let backgroundHeight = logoHeight
+                    
+                    // 计算红色背景位置
+                    let backgroundX: CGFloat
+                    switch logoPosition {
+                    case .left:
+                        backgroundX = 20  // 左对齐：背景贴近左边界
+                        print("🏷️ 🔴 红色背景左对齐: backgroundX = \(backgroundX)")
+                    case .right:
+                        backgroundX = imageSize.width - 20 - backgroundWidth  // 右对齐：背景贴近右边界
+                        print("🏷️ 🔴 红色背景右对齐: backgroundX = \(backgroundX)")
+                    case .center:
+                        backgroundX = (imageSize.width - backgroundWidth) / 2  // 居中：背景在画面中心
+                        print("🏷️ 🔴 红色背景居中: backgroundX = \(backgroundX)")
+                    }
+                    
+                    let backgroundRect = CGRect(
+                        x: backgroundX,
+                        y: imageSize.height - barHeight / 2 - backgroundHeight / 2,
+                        width: backgroundWidth,
+                        height: backgroundHeight
                     )
+                    
+                    // 🔴 绘制红色背景（调试用）- 暂时注释掉
+                    // UIColor.red.setFill()
+                    // UIRectFill(backgroundRect)
+                    print("🏷️ 🔴 红色背景区域: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
+                    
+                    // 🎨 计算Logo在红色背景内的位置
+                    let logoX: CGFloat
+                    switch logoPosition {
+                    case .left:
+                        // 🔧 修复：左对齐时logo在红色背景内左对齐
+                        logoX = backgroundRect.minX  
+                        print("🏷️ Logo左对齐: logoX=\(logoX), backgroundRect.minX=\(backgroundRect.minX)")
+                    case .right:
+                        // 🔧 修复：右对齐时logo在红色背景内右对齐
+                        logoX = backgroundRect.maxX - logoWidth
+                        print("🏷️ Logo右对齐: logoX=\(logoX), backgroundRect.maxX=\(backgroundRect.maxX), logoWidth=\(logoWidth)")
+                    case .center:
+                        logoX = backgroundRect.midX - logoWidth / 2  // 居中：logo在背景中心
+                        print("🏷️ Logo居中: logoX=\(logoX), backgroundRect.midX=\(backgroundRect.midX)")
+                    }
+                    
+                    print("🏷️ 调试信息:")
+                    print("  - logoPosition: \(logoPosition)")
+                    print("  - logoWidth: \(logoWidth)")
+                    print("  - backgroundRect: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
+                    print("  - 最终logoX: \(logoX)")
+                    print("  - Logo范围: [\(logoX) -> \(logoX + logoWidth)]")
+                    print("  - 背景范围: [\(backgroundRect.minX) -> \(backgroundRect.maxX)]")
                     
                     let logoRect = CGRect(
                         x: logoX,  // 🎨 使用动态计算的X坐标

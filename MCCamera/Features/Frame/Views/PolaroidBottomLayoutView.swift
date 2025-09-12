@@ -55,37 +55,36 @@ struct PolaroidBottomLayoutView: View {
             // 🎯 情况2: logo和信息在不同位置 - 精确对齐布局
             HStack {
                 // 左侧内容区域
-                Group {
-                    if logoPosition == .left && logoImage != nil {
-                        logoView
-                            .frame(maxWidth: .infinity, alignment: .leading) // Logo在背景容器内左对齐
-                            .padding(.leading, borderWidth) // 背景左间距与信息一致
-                    } else if infoPosition == .left && hasTextContent {
-                        textContentView
-                            .padding(.leading, borderWidth)
-                    }
+                if logoPosition == .left && logoImage != nil {
+                    logoView
+                        .padding(.leading, borderWidth) // Logo左对齐，只加左边距
+                    Spacer() // 推到左边
+                } else if infoPosition == .left && hasTextContent {
+                    textContentView
+                        .padding(.leading, borderWidth)
+                    Spacer()
                 }
                 
-                Spacer() // 中间弹性空间
+                // 中心内容
+                if logoPosition == .center && logoImage != nil {
+                    Spacer()
+                    logoView
+                    Spacer()
+                } else if infoPosition == .center && hasTextContent {
+                    Spacer()
+                    textContentView
+                    Spacer()
+                }
                 
                 // 右侧内容区域
-                Group {
-                    if logoPosition == .right && logoImage != nil {
-                        logoView
-                            .frame(maxWidth: .infinity, alignment: .trailing) // Logo在背景容器内右对齐
-                            .padding(.trailing, borderWidth) // 背景右间距与信息一致
-                    } else if infoPosition == .right && hasTextContent {
-                        textContentView
-                            .padding(.trailing, borderWidth)
-                    }
-                }
-                
-                // 中心内容（覆盖Spacer）
-                if logoPosition == .center && logoImage != nil {
+                if logoPosition == .right && logoImage != nil {
+                    Spacer() // 推到右边
                     logoView
-                        .frame(maxWidth: .infinity, alignment: .center) // Logo在背景容器内居中对齐
-                } else if infoPosition == .center && hasTextContent {
+                        .padding(.trailing, borderWidth) // Logo右对齐，只加右边距
+                } else if infoPosition == .right && hasTextContent {
+                    Spacer()
                     textContentView
+                        .padding(.trailing, borderWidth)
                 }
             }
         }
@@ -124,16 +123,86 @@ struct PolaroidBottomLayoutView: View {
         }
     }
     
-    // Logo视图
+    // Logo视图 - 智能Logo尺寸 + 精确对齐控制
     @ViewBuilder
     private var logoView: some View {
         if let logoImage = logoImage {
-            Image(uiImage: logoImage)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: 488, maxHeight: borderHeight * 0.25) // 🔧 修复：488px最大宽度，25%最大高度
-                .background(Color.red) // 🎯 调试：红色背景显示Logo边界
+            let logoSizes = calculateLogoSizes(for: logoImage)
+            
+            // 🔧 修复：使用HStack + Spacer实现精确对齐，避免SwiftUI自动居中
+            HStack(spacing: 0) {
+                // 左对齐时的前置空间
+                if logoPosition != .left {
+                    Spacer(minLength: 0)
+                }
+                
+                // 🔴 红色背景 + Logo组合
+                ZStack {
+                    // 红色背景 - 动态宽度适配Logo
+                    Rectangle()
+                        .fill(Color.red)
+                        .frame(width: logoSizes.backgroundWidth, height: logoSizes.logoHeight)
+                    
+                    // Logo图片 - 使用精确尺寸
+                    HStack(spacing: 0) {
+                        // Logo内对齐控制
+                        if logoPosition == .right {
+                            Spacer(minLength: 0)
+                        }
+                        
+                        Image(uiImage: logoImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: logoSizes.logoWidth, height: logoSizes.logoHeight)
+                        
+                        if logoPosition == .left {
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .frame(width: logoSizes.backgroundWidth, height: logoSizes.logoHeight)
+                }
+                
+                // 右对齐时的后置空间
+                if logoPosition != .right {
+                    Spacer(minLength: 0)
+                }
+            }
         }
+    }
+    
+    // 🔧 新增：智能Logo尺寸计算
+    private func calculateLogoSizes(for image: UIImage) -> (logoWidth: CGFloat, logoHeight: CGFloat, backgroundWidth: CGFloat) {
+        let logoAspectRatio = image.size.width / image.size.height
+        
+        // 🎯 固定Logo高度
+        let fixedLogoHeight = borderHeight * 0.25
+        
+        // 🎯 根据宽高比计算宽度
+        var calculatedWidth = fixedLogoHeight * logoAspectRatio
+        
+        // 🎯 设置宽度范围 - 避免极端情况
+        let minLogoWidth: CGFloat = 40   // 避免过窄Logo
+        let maxLogoWidth: CGFloat = 300  // 避免过宽Logo
+        
+        calculatedWidth = min(max(calculatedWidth, minLogoWidth), maxLogoWidth)
+        
+        // 🎯 重新计算高度以保持宽高比
+        let finalLogoHeight = calculatedWidth / logoAspectRatio
+        
+        // 🎯 动态背景宽度：Logo宽度 + 内边距
+        let padding: CGFloat = 20
+        let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
+        let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度(从488降到400)
+        
+        let dynamicBackgroundWidth = min(max(calculatedWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
+        
+        print("🎨 Logo尺寸计算:")
+        print("  - 原始尺寸: \(image.size)")
+        print("  - 宽高比: \(String(format: "%.2f", logoAspectRatio))")
+        print("  - 最终Logo: \(calculatedWidth) x \(finalLogoHeight)")
+        print("  - 背景宽度: \(dynamicBackgroundWidth)")
+        
+        return (logoWidth: calculatedWidth, logoHeight: finalLogoHeight, backgroundWidth: dynamicBackgroundWidth)
     }
     
     // 文字内容视图 - 单行显示，自适应宽度

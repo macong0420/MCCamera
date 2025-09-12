@@ -230,8 +230,12 @@ class WatermarkService {
                     logoX = centerX - logoWidth / 2  // 居中：logo中心在画面中心
                 }
                 
-                // 🔴 创建红色背景矩形 - 固定宽度，按对齐方式定位
-                let backgroundWidth: CGFloat = 488  // 固定红色背景宽度
+                // 🔴 创建红色背景矩形 - 动态宽度适配Logo
+                let padding: CGFloat = 20
+                let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
+                let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度
+                
+                let backgroundWidth = min(max(logoWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
                 let backgroundHeight = logoHeight   // 背景高度等于logo高度
                 
                 let backgroundX: CGFloat
@@ -258,19 +262,34 @@ class WatermarkService {
                 context.setFillColor(UIColor.red.cgColor)
                 context.fill(backgroundRect)
                 
-                // 🎨 在红色背景内绘制logo - 按对齐方式定位
+                // 🔧 真正的修复：Logo在红色背景内的对齐逻辑
+                print("  🔍 修复Logo在背景内的对齐：")
+                print("    - logoPosition: \(settings.logoPosition.displayName)")
+                print("    - logoWidth: \(logoWidth)")
+                print("    - backgroundRect: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
+                
+                // 🎯 关键修复：Logo在红色背景内的正确对齐
                 let logoInBackgroundX: CGFloat
+                let innerPadding: CGFloat = 10  // 背景内的内边距
+                
                 switch settings.logoPosition {
                 case .left:
-                    logoInBackgroundX = backgroundRect.minX  // 左对齐：logo贴着背景左边
-                    print("  🎨 Logo左对齐：logoInBackgroundX = \(logoInBackgroundX), backgroundRect.minX = \(backgroundRect.minX)")
+                    // 左对齐：Logo贴近背景左边，加少量内边距
+                    logoInBackgroundX = backgroundRect.minX + innerPadding
+                    print("  🎨 Logo左对齐：x = \(backgroundRect.minX) + \(innerPadding) = \(logoInBackgroundX)")
                 case .right:
-                    logoInBackgroundX = backgroundRect.maxX - logoWidth  // 右对齐：logo贴着背景右边
-                    print("  🎨 Logo右对齐：logoInBackgroundX = \(logoInBackgroundX)")
+                    // 右对齐：Logo贴近背景右边，减去logo宽度和内边距
+                    logoInBackgroundX = backgroundRect.maxX - logoWidth - innerPadding
+                    print("  🎨 Logo右对齐：x = \(backgroundRect.maxX) - \(logoWidth) - \(innerPadding) = \(logoInBackgroundX)")
                 case .center:
-                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2  // 居中：logo在背景中心
-                    print("  🎨 Logo居中：logoInBackgroundX = \(logoInBackgroundX), backgroundRect.midX = \(backgroundRect.midX)")
+                    // 居中：Logo在背景中心
+                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2
+                    print("  🎨 Logo居中：x = \(backgroundRect.midX) - \(logoWidth/2) = \(logoInBackgroundX)")
                 }
+                
+                print("  📐 最终Logo位置：x=\(logoInBackgroundX), width=\(logoWidth)")
+                print("  📐 Logo范围：[\(logoInBackgroundX) -> \(logoInBackgroundX + logoWidth)]")
+                print("  📐 背景范围：[\(backgroundRect.minX) -> \(backgroundRect.maxX)]")
                 
                 let logoRect = CGRect(
                     x: logoInBackgroundX,
@@ -406,8 +425,12 @@ class WatermarkService {
                     logoX = centerX - logoWidth / 2  // 居中：logo中心在画面中心
                 }
                 
-                // 🔴 创建红色背景矩形（简化版） - 固定宽度，按对齐方式定位
-                let backgroundWidth: CGFloat = 488  // 固定红色背景宽度
+                // 🔴 创建红色背景矩形（简化版） - 动态宽度适配Logo
+                let padding: CGFloat = 20
+                let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
+                let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度
+                
+                let backgroundWidth = min(max(logoWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
                 let backgroundHeight = logoHeight   // 背景高度等于logo高度
                 
                 let backgroundX: CGFloat
@@ -431,16 +454,29 @@ class WatermarkService {
                 context.setFillColor(UIColor.red.cgColor)
                 context.fill(backgroundRect)
                 
-                // 🎨 在红色背景内绘制logo（简化版） - 按对齐方式定位
+                // 🔧 简化版：Logo在红色背景内的对齐逻辑
+                print("  🔍 简化版修复Logo在背景内的对齐：")
+                print("    - logoPosition: \(settings.logoPosition.displayName)")
+                print("    - logoWidth: \(logoWidth)")
+                print("    - backgroundRect: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
+                
+                // 🎯 简化版：Logo在红色背景内的正确对齐
                 let logoInBackgroundX: CGFloat
+                let innerPadding: CGFloat = 10  // 背景内的内边距
+                
                 switch settings.logoPosition {
                 case .left:
-                    logoInBackgroundX = backgroundRect.minX  // 左对齐：logo贴着背景左边
+                    logoInBackgroundX = backgroundRect.minX + innerPadding
+                    print("  🎨 简化版Logo左对齐：x = \(logoInBackgroundX)")
                 case .right:
-                    logoInBackgroundX = backgroundRect.maxX - logoWidth  // 右对齐：logo贴着背景右边
+                    logoInBackgroundX = backgroundRect.maxX - logoWidth - innerPadding
+                    print("  🎨 简化版Logo右对齐：x = \(logoInBackgroundX)")
                 case .center:
-                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2  // 居中：logo在背景中心
+                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2
+                    print("  🎨 简化版Logo居中：x = \(logoInBackgroundX)")
                 }
+                
+                print("  📐 简化版最终Logo位置：x=\(logoInBackgroundX), width=\(logoWidth)")
                 
                 let logoRect = CGRect(
                     x: logoInBackgroundX,
