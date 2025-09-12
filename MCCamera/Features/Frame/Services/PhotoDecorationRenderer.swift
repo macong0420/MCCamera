@@ -563,34 +563,30 @@ class PhotoDecorationRenderer {
                         height: backgroundHeight
                     )
                     
-                    // 🔴 绘制红色背景（调试用）- 暂时注释掉
-                    // UIColor.red.setFill()
-                    // UIRectFill(backgroundRect)
-                    print("🏷️ 🔴 红色背景区域: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
+                    // 🎨 不绘制红色背景，保持透明
+                    print("🏷️ Logo区域（透明背景）: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
                     
-                    // 🎨 计算Logo在红色背景内的位置
+                    // 🎨 计算Logo的直接位置（无背景框）
                     let logoX: CGFloat
                     switch logoPosition {
                     case .left:
-                        // 🔧 修复：左对齐时logo在红色背景内左对齐
-                        logoX = backgroundRect.minX  
-                        print("🏷️ Logo左对齐: logoX=\(logoX), backgroundRect.minX=\(backgroundRect.minX)")
+                        // 左对齐：Logo贴近左边界
+                        logoX = 20  // 左边距
+                        print("🏷️ Logo左对齐: logoX=\(logoX)")
                     case .right:
-                        // 🔧 修复：右对齐时logo在红色背景内右对齐
-                        logoX = backgroundRect.maxX - logoWidth
-                        print("🏷️ Logo右对齐: logoX=\(logoX), backgroundRect.maxX=\(backgroundRect.maxX), logoWidth=\(logoWidth)")
+                        // 右对齐：Logo贴近右边界  
+                        logoX = imageSize.width - 20 - logoWidth  // 右边距
+                        print("🏷️ Logo右对齐: logoX=\(logoX)")
                     case .center:
-                        logoX = backgroundRect.midX - logoWidth / 2  // 居中：logo在背景中心
-                        print("🏷️ Logo居中: logoX=\(logoX), backgroundRect.midX=\(backgroundRect.midX)")
+                        logoX = (imageSize.width - logoWidth) / 2  // 居中：logo在画面中心
+                        print("🏷️ Logo居中: logoX=\(logoX)")
                     }
                     
                     print("🏷️ 调试信息:")
                     print("  - logoPosition: \(logoPosition)")
                     print("  - logoWidth: \(logoWidth)")
-                    print("  - backgroundRect: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
                     print("  - 最终logoX: \(logoX)")
                     print("  - Logo范围: [\(logoX) -> \(logoX + logoWidth)]")
-                    print("  - 背景范围: [\(backgroundRect.minX) -> \(backgroundRect.maxX)]")
                     
                     let logoRect = CGRect(
                         x: logoX,  // 🎨 使用动态计算的X坐标

@@ -211,88 +211,72 @@ class WatermarkService {
             let logoImage = LogoLoader.shared.loadLogoFromSettings(settings)
             
             if let logoImage = logoImage {
-                // 🔧 修复：保持Logo的真实宽高比，88px最大宽度限制，按比例调整高度
+                // 🔧 修复：智能Logo尺寸计算 - 双模式适配策略
                 let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                let maxLogoWidth: CGFloat = 488 // 最大宽度488px
+                let maxAvailableHeight = logoSize * 1.4  // 允许更大的高度范围
+                let maxAvailableWidth: CGFloat = 360  // 大幅增加最大宽度
                 
-                // 根据88px限制计算实际尺寸
-                let logoWidth = min(logoSize * logoAspectRatio, maxLogoWidth)
-                let logoHeight = logoWidth / logoAspectRatio
+                // 智能双模式适配
+                var logoWidth: CGFloat
+                var logoHeight: CGFloat
                 
-                // 🎨 修复logo位置计算 - 确保左右对齐边距一致
-                let logoX: CGFloat
-                switch settings.logoPosition {
-                case .left:
-                    logoX = leftX  // 左对齐：logo左边距离左边界固定距离
-                case .right:
-                    logoX = effectiveRect.maxX - rightEdgePadding - logoWidth  // 右对齐：logo右边距离右边界固定距离
-                case .center:
-                    logoX = centerX - logoWidth / 2  // 居中：logo中心在画面中心
+                if logoAspectRatio > 2.5 {
+                    // 长条形Logo - 优先保证宽度
+                    print("📀 水印-长条形Logo，寽高比: \(String(format: "%.2f", logoAspectRatio))")
+                    let preferredWidth = min(maxAvailableWidth * 0.85, maxAvailableWidth)
+                    let calculatedHeight = preferredWidth / logoAspectRatio
+                    
+                    if calculatedHeight <= maxAvailableHeight {
+                        logoWidth = preferredWidth
+                        logoHeight = calculatedHeight
+                    } else {
+                        logoHeight = maxAvailableHeight
+                        logoWidth = logoHeight * logoAspectRatio
+                    }
+                } else if logoAspectRatio < 0.6 {
+                    // 纵向Logo
+                    logoHeight = maxAvailableHeight
+                    logoWidth = max(logoHeight * logoAspectRatio, 35)
+                } else {
+                    // 方形Logo
+                    logoHeight = logoSize
+                    logoWidth = logoHeight * logoAspectRatio
+                    
+                    if logoWidth > maxAvailableWidth * 0.7 {
+                        logoWidth = maxAvailableWidth * 0.7
+                        logoHeight = logoWidth / logoAspectRatio
+                    }
                 }
                 
-                // 🔴 创建红色背景矩形 - 动态宽度适配Logo
-                let padding: CGFloat = 20
-                let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
-                let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度
+                print("  🎨 水印Logo尺寸: \(logoWidth) x \(logoHeight)")
                 
-                let backgroundWidth = min(max(logoWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
-                let backgroundHeight = logoHeight   // 背景高度等于logo高度
-                
-                let backgroundX: CGFloat
-                switch settings.logoPosition {
-                case .left:
-                    backgroundX = leftX  // 左对齐：背景左边贴近边界
-                    print("  🎨 左对齐：backgroundX = \(backgroundX), leftX = \(leftX)")
-                case .right:
-                    backgroundX = effectiveRect.maxX - rightEdgePadding - backgroundWidth  // 右对齐：背景右边距离边界固定距离
-                    print("  🎨 右对齐：backgroundX = \(backgroundX)")
-                case .center:
-                    backgroundX = centerX - backgroundWidth / 2  // 居中：背景中心在画面中心
-                    print("  🎨 居中：backgroundX = \(backgroundX), centerX = \(centerX)")
-                }
-                
-                let backgroundRect = CGRect(
-                    x: backgroundX,
-                    y: logoY,
-                    width: backgroundWidth,
-                    height: backgroundHeight
-                )
-                
-                // 🔴 绘制红色背景
-                context.setFillColor(UIColor.red.cgColor)
-                context.fill(backgroundRect)
-                
-                // 🔧 真正的修复：Logo在红色背景内的对齐逻辑
-                print("  🔍 修复Logo在背景内的对齐：")
+                // 🔧 Logo直接对齐逻辑（无背景框）
+                print("  🔍 Logo直接对齐：")
                 print("    - logoPosition: \(settings.logoPosition.displayName)")
                 print("    - logoWidth: \(logoWidth)")
-                print("    - backgroundRect: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
                 
-                // 🎯 关键修复：Logo在红色背景内的正确对齐
-                let logoInBackgroundX: CGFloat
-                let innerPadding: CGFloat = 10  // 背景内的内边距
+                // 🎯 Logo直接对齐，不依赖背景框
+                let logoX: CGFloat
                 
                 switch settings.logoPosition {
                 case .left:
-                    // 左对齐：Logo贴近背景左边，加少量内边距
-                    logoInBackgroundX = backgroundRect.minX + innerPadding
-                    print("  🎨 Logo左对齐：x = \(backgroundRect.minX) + \(innerPadding) = \(logoInBackgroundX)")
+                    // 左对齐：Logo贴近左边界
+                    logoX = leftX
+                    print("  🎨 Logo左对齐：x = \(leftX)")
                 case .right:
-                    // 右对齐：Logo贴近背景右边，减去logo宽度和内边距
-                    logoInBackgroundX = backgroundRect.maxX - logoWidth - innerPadding
-                    print("  🎨 Logo右对齐：x = \(backgroundRect.maxX) - \(logoWidth) - \(innerPadding) = \(logoInBackgroundX)")
+                    // 右对齐：Logo贴近右边界
+                    logoX = effectiveRect.maxX - rightEdgePadding - logoWidth
+                    print("  🎨 Logo右对齐：x = \(logoX)")
                 case .center:
-                    // 居中：Logo在背景中心
-                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2
-                    print("  🎨 Logo居中：x = \(backgroundRect.midX) - \(logoWidth/2) = \(logoInBackgroundX)")
+                    // 居中：Logo在画面中心
+                    logoX = centerX - logoWidth / 2
+                    print("  🎨 Logo居中：x = \(logoX)")
                 }
                 
-                print("  📐 最终Logo位置：x=\(logoInBackgroundX), width=\(logoWidth)")
-                print("  📐 Logo范围：[\(logoInBackgroundX) -> \(logoInBackgroundX + logoWidth)]")
-                print("  📐 背景范围：[\(backgroundRect.minX) -> \(backgroundRect.maxX)]")
+                print("  📐 最终Logo位置：x=\(logoX), width=\(logoWidth)")
                 
                 let logoRect = CGRect(
-                    x: logoInBackgroundX,
+                    x: logoX,
                     y: logoY,
                     width: logoWidth,
                     height: logoHeight
@@ -407,79 +391,67 @@ class WatermarkService {
             let logoImage = LogoLoader.shared.loadLogoFromSettings(settings)
             
             if let logoImage = logoImage {
-                // 保持Logo的真实宽高比
+                // 智能Logo尺寸计算 - 简化版双模式适配
                 let logoAspectRatio = logoImage.size.width / logoImage.size.height
-                let maxLogoWidth: CGFloat = 488
+                let maxAvailableHeight = logoSize * 1.4
+                let maxAvailableWidth: CGFloat = 360  // 大幅增加最大宽度
                 
-                let logoWidth = min(logoSize * logoAspectRatio, maxLogoWidth)
-                let logoHeight = logoWidth / logoAspectRatio
+                var logoWidth: CGFloat
+                var logoHeight: CGFloat
                 
-                // 🎨 修复简化版logo位置计算 - 确保左右对齐边距一致
-                let logoX: CGFloat
-                switch settings.logoPosition {
-                case .left:
-                    logoX = leftX  // 左对齐：logo左边距离左边界固定距离
-                case .right:
-                    logoX = effectiveRect.maxX - rightEdgePadding - logoWidth  // 右对齐：logo右边距离右边界固定距离
-                case .center:
-                    logoX = centerX - logoWidth / 2  // 居中：logo中心在画面中心
+                if logoAspectRatio > 2.5 {
+                    // 长条形Logo
+                    let preferredWidth = min(maxAvailableWidth * 0.85, maxAvailableWidth)
+                    let calculatedHeight = preferredWidth / logoAspectRatio
+                    
+                    if calculatedHeight <= maxAvailableHeight {
+                        logoWidth = preferredWidth
+                        logoHeight = calculatedHeight
+                    } else {
+                        logoHeight = maxAvailableHeight
+                        logoWidth = logoHeight * logoAspectRatio
+                    }
+                } else if logoAspectRatio < 0.6 {
+                    // 纵向Logo
+                    logoHeight = maxAvailableHeight
+                    logoWidth = max(logoHeight * logoAspectRatio, 35)
+                } else {
+                    // 方形Logo
+                    logoHeight = logoSize
+                    logoWidth = logoHeight * logoAspectRatio
+                    
+                    if logoWidth > maxAvailableWidth * 0.7 {
+                        logoWidth = maxAvailableWidth * 0.7
+                        logoHeight = logoWidth / logoAspectRatio
+                    }
                 }
                 
-                // 🔴 创建红色背景矩形（简化版） - 动态宽度适配Logo
-                let padding: CGFloat = 20
-                let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
-                let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度
+                print("🎨 简化版Logo尺寸: \(logoWidth) x \(logoHeight)")
                 
-                let backgroundWidth = min(max(logoWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
-                let backgroundHeight = logoHeight   // 背景高度等于logo高度
-                
-                let backgroundX: CGFloat
-                switch settings.logoPosition {
-                case .left:
-                    backgroundX = leftX  // 左对齐：背景左边贴近边界
-                case .right:
-                    backgroundX = effectiveRect.maxX - rightEdgePadding - backgroundWidth  // 右对齐：背景右边距离边界固定距离
-                case .center:
-                    backgroundX = centerX - backgroundWidth / 2  // 居中：背景中心在画面中心
-                }
-                
-                let backgroundRect = CGRect(
-                    x: backgroundX,
-                    y: logoY,
-                    width: backgroundWidth,
-                    height: backgroundHeight
-                )
-                
-                // 🔴 绘制红色背景（简化版）
-                context.setFillColor(UIColor.red.cgColor)
-                context.fill(backgroundRect)
-                
-                // 🔧 简化版：Logo在红色背景内的对齐逻辑
-                print("  🔍 简化版修复Logo在背景内的对齐：")
+                // 🔧 简化版：Logo直接对齐逻辑（无背景框）
+                print("  🔍 简化版Logo直接对齐：")
                 print("    - logoPosition: \(settings.logoPosition.displayName)")
                 print("    - logoWidth: \(logoWidth)")
-                print("    - backgroundRect: x=\(backgroundRect.minX), width=\(backgroundRect.width)")
                 
-                // 🎯 简化版：Logo在红色背景内的正确对齐
-                let logoInBackgroundX: CGFloat
-                let innerPadding: CGFloat = 10  // 背景内的内边距
+                // 🎯 简化版：Logo直接对齐，不依赖背景框
+                let logoX: CGFloat
                 
                 switch settings.logoPosition {
                 case .left:
-                    logoInBackgroundX = backgroundRect.minX + innerPadding
-                    print("  🎨 简化版Logo左对齐：x = \(logoInBackgroundX)")
+                    logoX = leftX
+                    print("  🎨 简化版Logo左对齐：x = \(leftX)")
                 case .right:
-                    logoInBackgroundX = backgroundRect.maxX - logoWidth - innerPadding
-                    print("  🎨 简化版Logo右对齐：x = \(logoInBackgroundX)")
+                    logoX = effectiveRect.maxX - rightEdgePadding - logoWidth
+                    print("  🎨 简化版Logo右对齐：x = \(logoX)")
                 case .center:
-                    logoInBackgroundX = backgroundRect.midX - logoWidth / 2
-                    print("  🎨 简化版Logo居中：x = \(logoInBackgroundX)")
+                    logoX = centerX - logoWidth / 2
+                    print("  🎨 简化版Logo居中：x = \(logoX)")
                 }
                 
-                print("  📐 简化版最终Logo位置：x=\(logoInBackgroundX), width=\(logoWidth)")
+                print("  📐 简化版最终Logo位置：x=\(logoX), width=\(logoWidth)")
                 
                 let logoRect = CGRect(
-                    x: logoInBackgroundX,
+                    x: logoX,
                     y: logoY,
                     width: logoWidth,
                     height: logoHeight

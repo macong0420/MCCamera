@@ -136,31 +136,11 @@ struct PolaroidBottomLayoutView: View {
                     Spacer(minLength: 0)
                 }
                 
-                // 🔴 红色背景 + Logo组合
-                ZStack {
-                    // 红色背景 - 动态宽度适配Logo
-                    Rectangle()
-                        .fill(Color.red)
-                        .frame(width: logoSizes.backgroundWidth, height: logoSizes.logoHeight)
-                    
-                    // Logo图片 - 使用精确尺寸
-                    HStack(spacing: 0) {
-                        // Logo内对齐控制
-                        if logoPosition == .right {
-                            Spacer(minLength: 0)
-                        }
-                        
-                        Image(uiImage: logoImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: logoSizes.logoWidth, height: logoSizes.logoHeight)
-                        
-                        if logoPosition == .left {
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    .frame(width: logoSizes.backgroundWidth, height: logoSizes.logoHeight)
-                }
+                // 🎨 纯Logo图片 - 去除红色背景
+                Image(uiImage: logoImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: logoSizes.logoWidth, height: logoSizes.logoHeight)
                 
                 // 右对齐时的后置空间
                 if logoPosition != .right {
@@ -170,39 +150,74 @@ struct PolaroidBottomLayoutView: View {
         }
     }
     
-    // 🔧 新增：智能Logo尺寸计算
-    private func calculateLogoSizes(for image: UIImage) -> (logoWidth: CGFloat, logoHeight: CGFloat, backgroundWidth: CGFloat) {
+    // 🔧 新增：智能Logo尺寸计算 - 双模式适配策略
+    private func calculateLogoSizes(for image: UIImage) -> (logoWidth: CGFloat, logoHeight: CGFloat) {
         let logoAspectRatio = image.size.width / image.size.height
+        let maxAvailableHeight = borderHeight * 0.35  // 增加最大高度到35%
+        let maxAvailableWidth: CGFloat = 450  // 大幅增加最大宽度限制
         
-        // 🎯 固定Logo高度
-        let fixedLogoHeight = borderHeight * 0.25
+        // 🎯 智能双模式适配策略
+        var finalWidth: CGFloat
+        var finalHeight: CGFloat
         
-        // 🎯 根据宽高比计算宽度
-        var calculatedWidth = fixedLogoHeight * logoAspectRatio
+        if logoAspectRatio > 2.0 {  // 降低阈值，更多Logo被识别为长条形
+            // 🏗️ 长条形Logo (宽高比 > 2.0) - 大幅增强显示效果
+            print("📏 检测到长条形Logo，宽高比: \(String(format: "%.2f", logoAspectRatio))")
+            
+            // 🚀 大幅增强长条形Logo的尺寸
+            let enhancedHeight = borderHeight * 0.45  // 增加到45%高度
+            let enhancedWidth = min(enhancedHeight * logoAspectRatio, maxAvailableWidth)
+            
+            // 如果按高度计算的宽度超出限制，则适当调整
+            if enhancedWidth >= maxAvailableWidth {
+                finalWidth = maxAvailableWidth * 0.95  // 使用95%的最大宽度
+                finalHeight = finalWidth / logoAspectRatio
+            } else {
+                finalWidth = enhancedWidth
+                finalHeight = enhancedHeight
+            }
+            
+            print("  🎨 长条形大幅增强: \(finalWidth) x \(finalHeight)")
+            
+        } else if logoAspectRatio < 0.6 {
+            // 🗼 纵向Logo (宽高比 < 0.6) - 优先保证高度
+            print("📏 检测到纵向Logo，宽高比: \(String(format: "%.2f", logoAspectRatio))")
+            
+            finalHeight = maxAvailableHeight
+            finalWidth = finalHeight * logoAspectRatio
+            
+            // 确保最小宽度
+            let minWidth: CGFloat = 45
+            if finalWidth < minWidth {
+                finalWidth = minWidth
+                finalHeight = finalWidth / logoAspectRatio
+            }
+            
+            print("  🎨 纵向优化: \(finalWidth) x \(finalHeight)")
+            
+        } else {
+            // 📐 方形或接近方形Logo (0.6 ≤ 宽高比 ≤ 2.5) - 平衡模式
+            print("📏 检测到方形Logo，宽高比: \(String(format: "%.2f", logoAspectRatio))")
+            
+            let baseHeight = borderHeight * 0.28  // 方形Logo使用稍小的高度
+            finalHeight = baseHeight
+            finalWidth = finalHeight * logoAspectRatio
+            
+            // 宽度限制
+            if finalWidth > maxAvailableWidth * 0.7 {
+                finalWidth = maxAvailableWidth * 0.7
+                finalHeight = finalWidth / logoAspectRatio
+            }
+            
+            print("  🎨 方形平衡: \(finalWidth) x \(finalHeight)")
+        }
         
-        // 🎯 设置宽度范围 - 避免极端情况
-        let minLogoWidth: CGFloat = 40   // 避免过窄Logo
-        let maxLogoWidth: CGFloat = 300  // 避免过宽Logo
-        
-        calculatedWidth = min(max(calculatedWidth, minLogoWidth), maxLogoWidth)
-        
-        // 🎯 重新计算高度以保持宽高比
-        let finalLogoHeight = calculatedWidth / logoAspectRatio
-        
-        // 🎯 动态背景宽度：Logo宽度 + 内边距
-        let padding: CGFloat = 20
-        let minBackgroundWidth: CGFloat = 120  // 最小背景宽度
-        let maxBackgroundWidth: CGFloat = 400  // 最大背景宽度(从488降到400)
-        
-        let dynamicBackgroundWidth = min(max(calculatedWidth + padding * 2, minBackgroundWidth), maxBackgroundWidth)
-        
-        print("🎨 Logo尺寸计算:")
+        print("🎨 最终Logo尺寸:")
         print("  - 原始尺寸: \(image.size)")
         print("  - 宽高比: \(String(format: "%.2f", logoAspectRatio))")
-        print("  - 最终Logo: \(calculatedWidth) x \(finalLogoHeight)")
-        print("  - 背景宽度: \(dynamicBackgroundWidth)")
+        print("  - 最终Logo: \(finalWidth) x \(finalHeight)")
         
-        return (logoWidth: calculatedWidth, logoHeight: finalLogoHeight, backgroundWidth: dynamicBackgroundWidth)
+        return (logoWidth: finalWidth, logoHeight: finalHeight)
     }
     
     // 文字内容视图 - 单行显示，自适应宽度
@@ -267,7 +282,7 @@ extension View {
 #Preview {
     PolaroidBottomLayoutView(
         frameSize: CGSize(width: 400, height: 300),
-        borderHeight: 60,
+        borderHeight: 100,
         logoImage: UIImage(systemName: "apple.logo"),
         logoPosition: .left,
         infoPosition: .right,

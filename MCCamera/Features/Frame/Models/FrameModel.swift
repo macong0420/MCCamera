@@ -92,6 +92,49 @@ class FrameSettings: ObservableObject {
     @Published var logoPosition: PositionAlignment = .center      // Logo位置
     @Published var infoPosition: PositionAlignment = .center      // 信息位置
     
+    // MARK: - 初始化
+    
+    init() {
+        // 🔧 修复：从WatermarkSettings加载默认值
+        loadDefaultsFromWatermarkSettings()
+    }
+    
+    /// 从WatermarkSettings加载默认值
+    private func loadDefaultsFromWatermarkSettings() {
+        let watermarkSettings = WatermarkSettings.load()
+        
+        // 🎯 关键修复：同步参数显示设置
+        self.showDeviceModel = watermarkSettings.showDeviceModel
+        self.showFocalLength = watermarkSettings.showFocalLength
+        self.showShutterSpeed = watermarkSettings.showShutterSpeed
+        self.showISO = watermarkSettings.showISO
+        self.showAperture = watermarkSettings.showAperture  // 🔧 修复：从WatermarkSettings加载showAperture
+        self.showTimeStamp = watermarkSettings.showTimeStamp
+        self.showDate = watermarkSettings.showDate
+        
+        // 同步水印基础设置
+        self.watermarkEnabled = watermarkSettings.isEnabled
+        self.watermarkStyle = watermarkSettings.watermarkStyle
+        self.watermarkPosition = watermarkSettings.position
+        self.authorName = watermarkSettings.authorName
+        
+        // 同步Logo设置
+        self.showLogoLine = watermarkSettings.showLogoLine
+        self.showDeviceLine = watermarkSettings.showDeviceLine
+        self.showLensLine = watermarkSettings.showLensLine
+        self.showParametersLine = watermarkSettings.showParametersLine
+        
+        // 同步位置设置
+        self.logoPosition = watermarkSettings.logoPosition
+        self.infoPosition = watermarkSettings.infoPosition
+        
+        print("🔄 FrameSettings已从WatermarkSettings加载默认值")
+        print("  - showAperture: \(self.showAperture)")
+        print("  - showISO: \(self.showISO)")
+        print("  - showShutterSpeed: \(self.showShutterSpeed)")
+        print("  - showDeviceModel: \(self.showDeviceModel)")
+    }
+    
     // MARK: - 统一设置同步
     
     /// 同步到统一设置管理器
